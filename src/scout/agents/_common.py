@@ -127,17 +127,27 @@ def call_json(
     model: str = "opus",
     max_tokens: int = 16384,
 ) -> dict:
-    """Call the model with an assistant prefill of '{' to force JSON output,
-    then parse and return the parsed dict. This is the standard path for any
-    agent that expects structured output."""
+    """Call the model and parse a JSON object from its response.
+
+    For models that support it we use the canonical "prefill `{`" trick to
+    force JSON output. Anthropic's *extended-thinking* models (Opus 4.5+,
+    likely future Sonnet versions) reject assistant-message prefill — the
+    conversation must end with a user message — so for those we skip the
+    prefill and rely on `extract_json` to recover JSON from whatever the
+    model returns (handles fenced and unfenced).
+    """
+    # Conservative: only assume opus has extended thinking. Expand this set
+    # if Sonnet/Haiku gain extended thinking later.
+    supports_prefill = model not in ("opus",)
+
     msg = client.messages_create(
         model=model,
         system=system,
         messages=[{"role": "user", "content": user}],
-        prefill="{",
+        prefill="{" if supports_prefill else None,
         max_tokens=max_tokens,
         run_id=run_id,
         agent=agent,
     )
-    text = "{" + msg.content[0].text
+    text = ("{" if supports_prefill else "") + msg.content[0].text
     return extract_json(text)
