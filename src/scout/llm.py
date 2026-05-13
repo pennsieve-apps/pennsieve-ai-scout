@@ -29,10 +29,15 @@ from botocore.config import Config
 # Logical model name → Bedrock model ID. Override via env vars so we don't
 # redeploy the image to bump a model ID. The governor's SSM-managed
 # allow-list is the source of truth for what's actually permitted.
+#
+# We use `us.*` (US-only) inference profiles by default — keeps data in US
+# regions (HIPAA-friendly for Pennsieve customers). `global.*` profiles route
+# anywhere AWS has capacity, including non-US regions, so they're unsuitable
+# for PHI-bearing workloads.
 MODEL_IDS: dict[str, str] = {
-    "opus":   os.environ.get("VP_MODEL_OPUS",   "global.anthropic.claude-opus-4-1-20250805-v1:0"),
-    "sonnet": os.environ.get("VP_MODEL_SONNET", "global.anthropic.claude-sonnet-4-5-20250929-v1:0"),
-    "haiku":  os.environ.get("VP_MODEL_HAIKU",  "global.anthropic.claude-haiku-4-5-20251001-v1:0"),
+    "opus":   os.environ.get("VP_MODEL_OPUS",   "us.anthropic.claude-opus-4-7"),
+    "sonnet": os.environ.get("VP_MODEL_SONNET", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+    "haiku":  os.environ.get("VP_MODEL_HAIKU",  "us.anthropic.claude-haiku-4-5-20251001-v1:0"),
 }
 
 # Lambda invoke uses sigv4 + sync RequestResponse mode. The governor itself
