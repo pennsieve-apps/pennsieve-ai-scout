@@ -9,7 +9,7 @@ dependencies = [
     # `anthropic.Anthropic` pointed at the governor with SigV4 auth and the
     # x-execution-run-id header wired up. Pulls in anthropic, httpx, and
     # boto3 transitively.
-    "pennsieve-llm>=0.4.0",
+    "pennsieve-llm>=0.4.1",
     "numpy>=1.26",
     "json-repair>=0.30",
 ]
