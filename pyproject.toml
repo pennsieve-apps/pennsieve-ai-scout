@@ -4,8 +4,10 @@ version = "0.0.1"
 description = "Pennsieve compute-node processor — stage 1 of the pennsieve-ai research pipeline."
 requires-python = ">=3.12"
 dependencies = [
-    "boto3>=1.34",
-    "httpx>=0.27",
+    # pennsieve-llm SDK handles SigV4-signed HTTPS calls to the Pennsieve
+    # LLM Governor, plus AnthropicBackend for local dev. Pulls in anthropic,
+    # httpx, and boto3 transitively.
+    "pennsieve-llm>=0.3.0",
     "numpy>=1.26",
     "json-repair>=0.30",
 ]
