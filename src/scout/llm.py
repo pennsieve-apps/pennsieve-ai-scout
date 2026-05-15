@@ -1,29 +1,22 @@
-"""Pennsieve LLM Governor client — adapter over `pennsieve-llm` Python SDK.
+"""Pennsieve LLM Governor client — thin facade over the `pennsieve-llm` SDK.
 
-Replaces the previous hand-marshaled `boto3.lambda.invoke()` path. The
-governor migrated to a Lambda Function URL with response streaming, so
-direct lambda:Invoke no longer works. All LLM access now goes through the
-official `pennsieve-llm` SDK, which handles SigV4-signed HTTPS calls
-against the governor URL internally.
+The pennsieve-llm SDK (v0.4+) returns a real `anthropic.Anthropic` instance,
+so we call `messages.create(...)` directly and get back an
+`anthropic.types.Message` with the usual shape: `.content[i].text`,
+`.usage.input_tokens`, `.usage.output_tokens`, `.stop_reason`, `.model`.
 
-The agent-facing interface (`LLMClient.messages_create(...)`) is unchanged
-so the existing agent code continues to work without modification.
+This file adds Scout-specific concerns on top of the SDK: logical model
+name → Bedrock inference-profile ID mapping, the prefill trick for JSON
+forcing, per-call usage logging written to `usage.jsonl`, and the
+structured per-agent print lines that show up in the notebook.
 """
 from __future__ import annotations
 
 import os
 import time
-from dataclasses import dataclass
 from datetime import datetime
 
-from pennsieve_llm import (
-    Governor,
-    GovernorError as _SDKGovernorError,
-    InvokeRequest,
-    assistant_message,
-    text_block,
-    user_message,
-)
+from pennsieve_llm import Governor
 
 
 # Logical model name → Bedrock inference-profile ID. The governor's
@@ -40,50 +33,20 @@ MODEL_IDS: dict[str, str] = {
 }
 
 
-class GovernorError(RuntimeError):
-    """Raised when the governor returns a structured error response.
-    Wraps pennsieve_llm.GovernorError so callers see a single exception type
-    from this module."""
-
-
-@dataclass
-class _Block:
-    text: str
-    type: str = "text"
-
-
-@dataclass
-class _Usage:
-    input_tokens: int
-    output_tokens: int
-
-
-@dataclass
-class _Message:
-    """Anthropic-SDK-shaped message object. Mirrors the fields agents read:
-    `.content[i].text`, `.usage.input_tokens`, `.usage.output_tokens`,
-    `.stop_reason`, `.model`."""
-    content: list[_Block]
-    usage: _Usage
-    model: str
-    stop_reason: str = ""
-
-
 class LLMClient:
-    """Adapter that exposes the legacy `messages_create(...)` interface
-    while delegating actual LLM calls to the `pennsieve-llm` Governor.
+    """Thin facade around the `anthropic.Anthropic` client returned by the
+    pennsieve-llm Governor.
 
-    Agent code (in `agents/_common.py:call_json` and friends) keeps calling
-    `client.messages_create(model="opus", ...)` and gets back a
-    Message-shaped object. This layer translates to/from the SDK's
-    InvokeRequest/InvokeResponse types.
+    Agents call `messages_create(model="opus", ...)` (legacy keyword name
+    kept so `agents/_common.call_json` doesn't change) and get back the
+    SDK's `Message` object directly.
     """
 
     def __init__(self) -> None:
         # Governor() auto-selects:
-        #   - LLM_GOVERNOR_URL set → HTTPS+SigV4 to deployed governor
-        #   - ANTHROPIC_API_KEY set → direct to api.anthropic.com (local dev)
-        #   - neither → MockBackend (tests)
+        #   - LLM_GOVERNOR_URL set → anthropic.Anthropic with SigV4 + governor URL
+        #   - else → MockClient (tests / offline)
+        # x-execution-run-id is wired as a default header from $EXECUTION_RUN_ID.
         self._gov = Governor()
         self.usage_log: list[dict] = []
 
@@ -98,10 +61,13 @@ class LLMClient:
         run_id: str | None = None,
         agent: str | None = None,
         temperature: float = 0.0,
-    ) -> _Message:
-        """Drop-in for the previous boto3-backed client. Same signature,
-        same return shape; SDK handles transport + SigV4 + Anthropic
-        Messages API translation internally."""
+    ):
+        """Call `anthropic.Anthropic.messages.create` against the governor.
+
+        Returns the SDK's `Message` directly — `.content[0].text`,
+        `.usage.input_tokens`, `.usage.output_tokens`, `.stop_reason`,
+        `.model` are all read by agent code.
+        """
         bedrock_model = MODEL_IDS.get(model)
         if not bedrock_model:
             raise RuntimeError(
@@ -112,48 +78,30 @@ class LLMClient:
         # Canonical prefill trick — append an assistant turn that the model
         # continues from. Caller (agents/_common.call_json) handles the
         # Opus-extended-thinking exception by passing prefill=None.
-        scout_messages = list(messages)
+        send_messages = list(messages)
         if prefill is not None:
-            scout_messages = scout_messages + [{"role": "assistant", "content": prefill}]
+            send_messages = send_messages + [{"role": "assistant", "content": prefill}]
 
-        sdk_messages = [_to_sdk_message(m) for m in scout_messages]
-
-        prompt_chars = sum(_chars(m.get("content", "")) for m in scout_messages) + len(system or "")
+        prompt_chars = sum(_chars(m.get("content", "")) for m in send_messages) + len(system or "")
         prefill_note = f" prefill={prefill!r}" if prefill else ""
         print(
             f"  [llm] → {agent}  model={model}  prompt~{prompt_chars:,} chars{prefill_note}",
             flush=True,
         )
 
-        req = InvokeRequest(
+        t0 = time.monotonic()
+        resp = self._gov.client().messages.create(
             model=bedrock_model,
             system=system,
-            messages=sdk_messages,
+            messages=send_messages,
             max_tokens=max_tokens,
             temperature=temperature,
-            execution_run_id=run_id or os.environ.get("EXECUTION_RUN_ID", "local-dev"),
         )
-
-        t0 = time.monotonic()
-        try:
-            resp = self._gov.invoke(req)
-        except _SDKGovernorError as e:
-            # Re-raise as scout's GovernorError so call sites can catch a
-            # single exception type from this module.
-            print(f"  [llm] ✗ {agent}  governor error: {e.code}: {e.msg}", flush=True)
-            raise GovernorError(f"{e.code}: {e.msg}") from e
         elapsed = time.monotonic() - t0
 
-        text = resp.text()
         in_tok = resp.usage.input_tokens
         out_tok = resp.usage.output_tokens
         stop = resp.stop_reason or ""
-
-        # Caller convention (agents/_common.call_json): when prefill was
-        # supplied, the caller re-prepends it. So .text returned here is
-        # just the model's continuation, matching the Anthropic SDK's
-        # behavior. We do NOT prepend prefill here.
-
         stop_note = f" stop={stop}" if stop and stop != "end_turn" else ""
         print(
             f"  [llm] ← {agent}  in={in_tok:,} tok  out={out_tok:,} tok  ({elapsed:.1f}s){stop_note}",
@@ -172,35 +120,7 @@ class LLMClient:
             "stop_reason": stop,
         })
 
-        return _Message(
-            content=[_Block(text=text)],
-            usage=_Usage(input_tokens=in_tok, output_tokens=out_tok),
-            model=resp.model or bedrock_model,
-            stop_reason=stop,
-        )
-
-
-def _to_sdk_message(m: dict):
-    """Convert one of Scout's message dicts {role, content} into the SDK's
-    Message dataclass. Content may be a plain string or a list of block dicts."""
-    role = m.get("role", "user")
-    content = m.get("content", "")
-    if isinstance(content, str):
-        blocks = [text_block(content)]
-    else:
-        # Already a list of block dicts (from agents that build content blocks
-        # explicitly). Convert each to an SDK ContentBlock via text_block —
-        # we currently only emit text blocks from scout; extend here if image
-        # / document blocks become needed.
-        blocks = []
-        for b in content:
-            if isinstance(b, dict) and b.get("type") == "text":
-                blocks.append(text_block(b.get("text", "")))
-            elif isinstance(b, str):
-                blocks.append(text_block(b))
-    if role == "assistant":
-        return assistant_message(*blocks)
-    return user_message(*blocks)
+        return resp
 
 
 def _chars(content) -> int:
