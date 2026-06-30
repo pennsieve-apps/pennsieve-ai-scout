@@ -1,0 +1,3 @@
+{"ts": "2026-06-28T22:31:16", "run_id": "local-dev", "agent": "topic_extractor", "model": "sonnet", "model_id": "us.anthropic.claude-sonnet-4-5-20250929-v1:0", "input_tokens": 10, "output_tokens": 5, "elapsed_s": 0.0, "stop_reason": "end_turn"}
+{"ts": "2026-06-28T22:31:41", "run_id": "local-dev", "agent": "dataset_compatibility", "model": "sonnet", "model_id": "us.anthropic.claude-sonnet-4-5-20250929-v1:0", "input_tokens": 10, "output_tokens": 5, "elapsed_s": 0.0, "stop_reason": "end_turn"}
+{"ts": "2026-06-28T22:31:41", "run_id": "local-dev", "agent": "dataset_framer", "model": "opus", "model_id": "us.anthropic.claude-opus-4-7", "input_tokens": 10, "output_tokens": 5, "elapsed_s": 0.0, "stop_reason": "end_turn"}

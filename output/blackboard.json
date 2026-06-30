@@ -1,0 +1,478 @@
+{
+  "research_question": "What productive follow-up research question can be answered using pennsieve:6 (SPARC Nerve Activity Predictor (SNAP)) \u2014 building on or extending its prior published work?",
+  "subsystem": "pennsieve:6",
+  "run_id": "local-dev",
+  "search_query": "",
+  "search_queries": [],
+  "max_iterations": 3,
+  "iterations_completed": 0,
+  "stop_reason": "",
+  "lab_profile": {},
+  "director_brief": null,
+  "papers_seen": [],
+  "literature_claims": [],
+  "deep_evidence": [],
+  "deep_read_stats": {},
+  "collaboration_candidates": [],
+  "dataset_summaries": [
+    {
+      "id": "pennsieve:6",
+      "title": "SPARC Nerve Activity Predictor (SNAP)",
+      "description": "Interactive, AI-informed computational model of stimulus parameter-dependent vagal nerve responses resulting from bipolar, constant-current stimuli.\n\nCaption: Simulation of compound action potential propagation",
+      "measurements": [
+        "simcore",
+        "osparc",
+        "vagus nerve",
+        "compound nerve action potential",
+        "stimulus-response relationship",
+        "computational model",
+        "prediction and control"
+      ],
+      "species": "",
+      "n_subjects": 0,
+      "repo": "pennsieve",
+      "url": "https://discover.pennsieve.io/datasets/6",
+      "doi": "10.26275/9ly6-az0n",
+      "readme": "## SNAP: SPARC Nerve Activity Predictor\n\nLoad and interact with nerve activation profiles produced by the autonomous neural control algorithm. Users can sweep stimulus pulse current and/or pulse duration to visualize the subject and nerve-dependent stimulus-response surface that relates stimulus pulse shape (i.e., the shape of a pulse having a particular duration and current) to the measured compound nerve action potential response plotted against conduction velocity or response latency.  The compound nerve action potential response can be viewed in terms of %maximal activation or response voltage.  This model uniquely and accurately predicts the graded nerve response to stimulation measured using bipolar cuff electrodes* and may in the future serve as a unique mapping tool to catalog measured end-organ responses in order to relate nerve fiber caliber, modulation pattern/rate and strength to end-organ effects.\n\n**Tutorial:**\nA tutorial for this dataset can be found on o\u00b2S\u00b2PARC documentation [here](https://docs.osparc.io/#/docs/tutorials/matt_ward).\n\n**Reference:**\n\n*Ward, M. P., Qing, K. Y., Otto, K. J., Worth, R. M., John, S. W., & Irazoqui, P. P. (2014). A flexible platform for biofeedback-driven control and personalization of electrical nerve stimulation therapy. IEEE Transactions on Neural Systems and Rehabilitation Engineering, 23(3), 475-484.",
+      "file_types": {
+        "Json": 3,
+        "JPEG": 1,
+        "CSV": 1,
+        "Markdown": 1
+      },
+      "file_tree": "(root)/  (3 files; jpg:1, json:1, md:1)\n  banner.jpg (21.8KB)\n  manifest.json (2.8KB)\n  readme.md (1.3KB)\nfiles/  (1 files; json:1)\n  files/template.json (280.0B)\nmetadata/  (1 files; json:1)\n  metadata/schema.json (567.0B)\nmetadata/records/  (1 files; csv:1)\n  metadata/records/file.csv (130.0B)",
+      "record_tables": {
+        "file.csv": {
+          "columns": [
+            "id",
+            "path",
+            "sourcePackageId"
+          ],
+          "n_rows": 1,
+          "head": [
+            {
+              "id": "ba9ef2a2-2eb7-4a79-b02e-185bba82fc19",
+              "path": "files/template.json",
+              "sourcePackageId": "N:package:635ef85f-b658-4dbf-ac94-c1f6b8f032cf"
+            }
+          ]
+        }
+      },
+      "external_publications": [],
+      "bucket_uri": "s3://sparc-prod-aod-discover-publish50-use1/6/",
+      "access_type": "oad",
+      "extracted_topics": [],
+      "license": "MIT",
+      "size_bytes": 26845,
+      "file_count": 6,
+      "relevance_note": "user-selected seed"
+    },
+    {
+      "id": "pennsieve:318",
+      "title": "Multi-scale rabbit cardiac electrophysiology models",
+      "description": "A computational workflow for integration and implementation of a reusable and reproducible rabbit cardiac multi-scale electrophysiology model. \nCaption: Illustration of ion channels and action potential propogation in cardiac tissue.",
+      "measurements": [
+        "simcore",
+        "osparc",
+        "computational workflows",
+        "cardiac electrophysiology",
+        "heart",
+        "rabbit"
+      ],
+      "species": "",
+      "n_subjects": 0,
+      "repo": "pennsieve",
+      "url": "https://discover.pennsieve.io/datasets/318",
+      "doi": "10.26275/s00b-gket",
+      "readme": "**Study Purpose:** A multi-layered model representation of the autonomic nervous system that includes sympathetic and parasympathetic branches, each with sparse random intralayer connectivity, synaptic dynamics, and conductance based integrate-and-fire neurons, generates firing patterns in agreement with experiment.\n\n**Data Collection:** Not applicable \u2013 it is a computational study. This work is also based on previous research using [Kepler flows to model cardiac physiology](https://doi.org/10.26275/tv7g-o8ff)\n\n**Primary Conclusion:** We present a multiscale model of autonomic control of cardiac electrophysiology that integrates data from the atomistic, subcellular, cellular and systems scale and predicts the effect of efferent stimulation of the sympathetic and parasympathetic branches of the autonomic nervous system on the cardiac sinoatrial node and ventricular myocardium.\n\n---\n\n**Curator's Notes**\n\n**Experimental Design:** The workflow integrates multistep single-cell, 1D and 2D model simulations in a single automated process. The model formulation for ventricular cells from rabbits [Soltis-Saucerman](https://doi.org/10.1016/j.bpj.2010.08.016) was implemented in the workflow. The model contains beta-adrenergic signaling pathways, and the firing rate model (unpublished Lewis model).\n\n\n**Completeness:** This dataset is complete. \n\n**Subjects & Samples:** This is a computational model dataset; thus no subjects are described.\n\n\n**Primary vs derivative data:** Not applicable. This is a computational study.\n\n**Code Availability:** A tutorial for this dataset can be found on o\u00b2S\u00b2PARC documentation [here](https://docs.osparc.io/#/docs/tutorials/uc_davis).\n\n\n\n",
+      "file_types": {
+        "Json": 4,
+        "MSExcel": 3,
+        "Markdown": 2,
+        "JPEG": 1,
+        "CSV": 1
+      },
+      "file_tree": "(root)/  (4 files; md:2, jpg:1, json:1)\n  banner.jpg (120.5KB)\n  changelog.md (24.0B)\n  manifest.json (5.2KB)\n  readme.md (1.6KB)\nfiles/  (3 files; xlsx:2, json:1)\n  files/dataset_description.xlsx (14.1KB)\n  files/submission.xlsx (5.5KB)\n  files/template.json (439.0B)\nfiles/code/  (2 files; xlsx:1, json:1)\n  files/code/manifest.xlsx (9.4KB)\n  files/code/simulation.json (7.4KB)\nmetadata/  (1 files; json:1)\n  metadata/schema.json (567.0B)\nmetadata/records/  (1 files; csv:1)\n  metadata/records/file.csv (575.0B)",
+      "record_tables": {
+        "file.csv": {
+          "columns": [
+            "id",
+            "path",
+            "sourcePackageId"
+          ],
+          "n_rows": 5,
+          "head": [
+            {
+              "id": "680d5033-b7c7-4d7e-9b70-2a97adb5a852",
+              "path": "files/code/simulation.json",
+              "sourcePackageId": "N:package:47fd6fe1-5186-474f-a951-7d572cc618dd"
+            },
+            {
+              "id": "656a406b-0302-446f-8c33-03cff0095c65",
+              "path": "files/code/manifest.xlsx",
+              "sourcePackageId": "N:package:80865acb-6da3-4720-a3ba-f09947828732"
+            },
+            {
+              "id": "5b8710df-e89a-43fd-bf33-59dcc2cd3cd0",
+              "path": "files/template.json",
+              "sourcePackageId": "N:package:0167b998-e851-47b7-9a26-621aab7be3bf"
+            },
+            {
+              "id": "1a04cff9-9dbc-4aef-a087-c1d85c426465",
+              "path": "files/submission.xlsx",
+              "sourcePackageId": "N:package:c0ae11a6-ee70-44d7-8e0f-233ba8618ee7"
+            },
+            {
+              "id": "475836e5-b12a-49b4-9e10-0743405747e2",
+              "path": "files/dataset_description.xlsx",
+              "sourcePackageId": "N:package:3a322b5c-0a4e-4b9e-8bcd-83a9aad2fd5d"
+            }
+          ]
+        }
+      },
+      "external_publications": [
+        {
+          "doi": "10.1016/j.bpj.2010.08.016",
+          "relationshipType": "References"
+        }
+      ],
+      "bucket_uri": "s3://sparc-prod-aod-discover-publish50-use1/318/",
+      "access_type": "oad",
+      "extracted_topics": [],
+      "license": "MIT",
+      "size_bytes": 170297,
+      "file_count": 11,
+      "relevance_note": "similar by tag overlap"
+    },
+    {
+      "id": "pennsieve:320",
+      "title": "Multi-scale human cardiac electrophysiology models",
+      "description": "A computational workflow for integration and implementation of a reusable and reproducible human cardiac multi-scale electrophysiology model. \nCaption: Illustration of ion channels and action potential propogation in cardiac tissue",
+      "measurements": [
+        "osparc",
+        "simcore",
+        "cardiac electrophysiology",
+        "multiscale computational modeling",
+        "computational workflows",
+        "human",
+        "heart"
+      ],
+      "species": "",
+      "n_subjects": 0,
+      "repo": "pennsieve",
+      "url": "https://discover.pennsieve.io/datasets/320",
+      "doi": "10.26275/dhe4-zh53",
+      "readme": "**Study Purpose:** A multi-layered model representation of the autonomic nervous system that includes sympathetic and parasympathetic branches, each with sparse random intralayer connectivity, synaptic dynamics and conductance based integrate-and-fire neurons, generates firing patterns in agreement with experiment.\n\n**Data Collection:** Not applicable \u2013 a computational study. This work is also based on previous research using [Kepler flows to model cardiac physiology](https://doi.org/10.26275/tv7g-o8ff)\n\n**Primary Conclusion:** We present a multiscale model of autonomic control of cardiac electrophysiology that integrates data from the atomistic, subcellular, cellular and systems scale and predicts the effect of efferent stimulation of the sympathetic and parasympathetic branches of the autonomic nervous system on the cardiac sinoatrial node and ventricular myocardium.\n\n---\n\n**Curator's Notes**\n\n**Experimental Design:** Multi-scale human cardiac electrophysiology models. The workflow integrates multistep single-cell, 1D and 2D model simulations in a single automated process. The model formulation for ventricular cells from humans [Grandi-Bers](https://doi.org/10.1016/j.yjmcc.2009.09.019) are implemented in the workflow. The model contains beta-adrenergic signaling pathways and the firing rate model (unpublished Lewis model).\n\n**Completeness:** This dataset is complete. \n\n**Subjects & Samples:** This is a computational model dataset; thus no subjects are described.\n\n\n**Primary vs derivative data:** Not applicable. This is a computational study.\n\n**Code Availability:** A tutorial for this dataset is available [here](https://docs.osparc.io/#/docs/tutorials/uc_davis).\n\n**Important Notes:** In order to access related oSPARC study, you must be logged in to [osparc.io](https://osparc.io/). If you don't have an account, write to the [Support email](mailto:support@osparc.io) to request one. ",
+      "file_types": {
+        "Json": 4,
+        "Markdown": 2,
+        "MSExcel": 2,
+        "JPEG": 1,
+        "CSV": 1
+      },
+      "file_tree": "(root)/  (4 files; md:2, jpg:1, json:1)\n  banner.jpg (123.1KB)\n  changelog.md (24.0B)\n  manifest.json (4.9KB)\n  readme.md (1.9KB)\nfiles/  (2 files; xlsx:1, json:1)\n  files/dataset_description.xlsx (14.1KB)\n  files/template.json (432.0B)\nfiles/code/  (2 files; xlsx:1, json:1)\n  files/code/manifest.xlsx (9.6KB)\n  files/code/simulation.json (7.4KB)\nmetadata/  (1 files; json:1)\n  metadata/schema.json (567.0B)\nmetadata/records/  (1 files; csv:1)\n  metadata/records/file.csv (468.0B)",
+      "record_tables": {
+        "file.csv": {
+          "columns": [
+            "id",
+            "path",
+            "sourcePackageId"
+          ],
+          "n_rows": 4,
+          "head": [
+            {
+              "id": "505d7eda-6ed8-416d-8070-6d21469fc9c5",
+              "path": "files/code/simulation.json",
+              "sourcePackageId": "N:package:f20e4ec0-a124-4d88-b198-0209205f3a42"
+            },
+            {
+              "id": "5a835c10-f9a2-4e26-8b43-962f768bae77",
+              "path": "files/code/manifest.xlsx",
+              "sourcePackageId": "N:package:b8c9a314-b66e-495f-90f8-db7e547f6400"
+            },
+            {
+              "id": "bd8d3b1a-aee7-4cab-bcf9-31a4a98bd565",
+              "path": "files/dataset_description.xlsx",
+              "sourcePackageId": "N:package:226a1b4a-59e2-45d6-ab0f-6f169bda8776"
+            },
+            {
+              "id": "a60e4580-8674-4dc4-80c7-d39299a23d78",
+              "path": "files/template.json",
+              "sourcePackageId": "N:package:d19147d2-2a05-4838-8d24-fb742f9b5dbe"
+            }
+          ]
+        }
+      },
+      "external_publications": [],
+      "bucket_uri": "s3://sparc-prod-aod-discover-publish50-use1/320/",
+      "access_type": "oad",
+      "extracted_topics": [],
+      "license": "MIT",
+      "size_bytes": 167063,
+      "file_count": 10,
+      "relevance_note": "similar by tag overlap"
+    },
+    {
+      "id": "pennsieve:322",
+      "title": "A multiscale predictive digital twin for neurocardiac modulation in rabbits",
+      "description": "A digital twin for predicting neuromodulation",
+      "measurements": [
+        "nervous system",
+        "heart",
+        "rabbit",
+        "multiscale model",
+        "osparc"
+      ],
+      "species": "",
+      "n_subjects": 0,
+      "repo": "pennsieve",
+      "url": "https://discover.pennsieve.io/datasets/322",
+      "doi": "10.26275/cdjq-pjlb",
+      "readme": "**Study Purpose**: Predicting the effect of efferent stimulation of the sympathetic and parasympathetic branches of the autonomic nervous system on the cardiac sinoatrial node and ventricular myocardium with a multiscale model that integrates data from the atomistic, subcellular, cellular and systems scale.\n\n**Data Collection:** Not applicable \u2013 it is a computational study.\n\n**Primary conclusion**: We have developed computational workflows for the multi-layered model.\u00a0 A multi-layered model representation of the autonomic nervous system that includes sympathetic and parasympathetic branches, each with sparse random intralayer connectivity, synaptic dynamics and conductance based integrate-and-fire neurons, generates firing patterns in agreement with experiment. \n\n\n\n---\n\n**Curator's Notes**\n\n**Experimental Design:** We present a multiscale model of autonomic control of cardiac electrophysiology that integrates data from the atomistic, subcellular, cellular and systems scale and predicts the effect of efferent stimulation of the sympathetic and parasympathetic branches of the autonomic nervous system on the cardiac sinoatrial node and ventricular myocardium.\n\n**Completeness:** This dataset is complete. \n\n**Subjects & Samples:** This is a computational model dataset; thus no subjects are described.\n\n\n**Primary vs derivative data:** Not applicable. This is a computational study. Only a configuration file to view and run the simulation on the o\u00b2S\u00b2PARC platform is provided.\n\n**Code Availability:** o\u00b2S\u00b2PARC template for the computational workflow can be found [here](https://osparc.io/study/c18a2e06-e50a-11ed-91ff-02420a0b004d)",
+      "file_types": {
+        "Json": 3,
+        "Markdown": 2,
+        "MSExcel": 2,
+        "JPEG": 1,
+        "CSV": 1
+      },
+      "file_tree": "(root)/  (4 files; md:2, jpg:1, json:1)\n  banner.jpg (120.5KB)\n  changelog.md (24.0B)\n  manifest.json (4.3KB)\n  readme.md (1.6KB)\nfiles/  (3 files; xlsx:2, json:1)\n  files/dataset_description.xlsx (14.0KB)\n  files/manifest.xlsx (5.5KB)\n  files/template.json (199.0B)\nmetadata/  (1 files; json:1)\n  metadata/schema.json (567.0B)\nmetadata/records/  (1 files; csv:1)\n  metadata/records/file.csv (351.0B)",
+      "record_tables": {
+        "file.csv": {
+          "columns": [
+            "id",
+            "path",
+            "sourcePackageId"
+          ],
+          "n_rows": 3,
+          "head": [
+            {
+              "id": "bdcba456-e313-44d7-bd42-3a72b6c4eeeb",
+              "path": "files/manifest.xlsx",
+              "sourcePackageId": "N:package:88059d56-d6d3-4aa3-8cd1-9769c0a7123b"
+            },
+            {
+              "id": "7c6b6e0b-0026-487e-9083-15e83138a2a0",
+              "path": "files/template.json",
+              "sourcePackageId": "N:package:a784d893-cd43-48d0-9410-1ce1be88dafe"
+            },
+            {
+              "id": "e766b7bb-f7c7-4f5b-bf93-e4605fb462de",
+              "path": "files/dataset_description.xlsx",
+              "sourcePackageId": "N:package:d218ca4d-cdf3-49c5-a7e4-cfcc307bf9f9"
+            }
+          ]
+        }
+      },
+      "external_publications": [
+        {
+          "doi": "10.26275/s00b-gket",
+          "relationshipType": "IsVariantFormOf"
+        }
+      ],
+      "bucket_uri": "s3://sparc-prod-aod-discover-publish50-use1/322/",
+      "access_type": "oad",
+      "extracted_topics": [],
+      "license": "GNU Lesser General Public License",
+      "size_bytes": 151305,
+      "file_count": 9,
+      "relevance_note": "similar by tag overlap"
+    },
+    {
+      "id": "pennsieve:277",
+      "title": "SPARC Metadata Editor (sparc-me) - Creating new SDS datasets",
+      "description": "A python tool to explore, enhance, and expand SPARC datasets and their descriptions in accordance with FAIR principles.\nThis  tutorial was developed during the SPARC FAIR Codeathon 2022.",
+      "measurements": [
+        "tutorial",
+        "metadata",
+        "simcore",
+        "osparc"
+      ],
+      "species": "",
+      "n_subjects": 0,
+      "repo": "pennsieve",
+      "url": "https://discover.pennsieve.io/datasets/277",
+      "doi": "10.26275/yjtg-qxem",
+      "readme": "",
+      "file_types": {},
+      "file_tree": "(no manifest available)",
+      "record_tables": {},
+      "external_publications": [],
+      "bucket_uri": "s3://pennsieve-prod-discover-publish50-use1/277/",
+      "access_type": "requester_pays",
+      "extracted_topics": [],
+      "license": "GNU General Public License v3.0",
+      "size_bytes": 47195,
+      "file_count": 8,
+      "relevance_note": "similar by tag overlap"
+    },
+    {
+      "id": "dandi:000956",
+      "title": "Vagus nerve stimulation recruits the central cholinergic system to enhance perceptual learning",
+      "description": "Perception can be refined by experience up to certain limits. It is unclear if perceptual limitations are absolute or could be partially overcome via enhanced neuromodulation and/or plasticity. Recent studies suggest the utility of peripheral nerve stimulation - specifically vagus nerve stimulation (VNS) - for altering neural activity and augmenting experience-dependent plasticity, although little is known about central mechanisms recruited by VNS. Here we developed an auditory discrimination task for mice implanted with a VNS electrode. VNS occurring during behavior gradually improved discrimination abilities beyond the level achieved by training alone. Using two-photon imaging, we identified changes to auditory cortical responses and activation of cortically-projecting cholinergic axons with VNS. Anatomical and optogenetic experiments indicated that VNS could enhance task performance via activation of the central cholinergic system. These results highlight the importance of cholinergic modulation for the efficacy of VNS, perhaps enabling further refinement of VNS methodology for clinical conditions.\n\nAll data and code associated with manuscript",
+      "measurements": [],
+      "species": "",
+      "n_subjects": 0,
+      "repo": "dandi",
+      "url": "https://dandiarchive.org/dandiset/000956/draft",
+      "doi": "",
+      "readme": "Perception can be refined by experience up to certain limits. It is unclear if perceptual limitations are absolute or could be partially overcome via enhanced neuromodulation and/or plasticity. Recent studies suggest the utility of peripheral nerve stimulation - specifically vagus nerve stimulation (VNS) - for altering neural activity and augmenting experience-dependent plasticity, although little is known about central mechanisms recruited by VNS. Here we developed an auditory discrimination task for mice implanted with a VNS electrode. VNS occurring during behavior gradually improved discrimination abilities beyond the level achieved by training alone. Using two-photon imaging, we identified changes to auditory cortical responses and activation of cortically-projecting cholinergic axons with VNS. Anatomical and optogenetic experiments indicated that VNS could enhance task performance via activation of the central cholinergic system. These results highlight the importance of cholinergic modulation for the efficacy of VNS, perhaps enabling further refinement of VNS methodology for clinical conditions.\n\nAll data and code associated with manuscript",
+      "file_types": {},
+      "file_tree": "(no files)",
+      "record_tables": {},
+      "external_publications": [],
+      "bucket_uri": "https://api.dandiarchive.org/api/dandisets/000956/versions/draft",
+      "access_type": "https",
+      "extracted_topics": [],
+      "license": "",
+      "size_bytes": 0,
+      "file_count": 0,
+      "relevance_note": "similar by tag overlap"
+    },
+    {
+      "id": "dandi:001794",
+      "title": "High-density electrophysiology of the porcine optic nerve and visual cortex during visual and electrical stimulation",
+      "description": "This Dandiset contains acute in vivo electrophysiology recordings from anesthetized pigs acquired using high-density flexible microelectrode arrays placed around the optic nerve and, in selected experiments, over early visual cortex. Recordings were acquired with an Intan RHD system during visual stimulation paradigms including full-field light flashes and localized retinal stimulation. The dataset includes raw extracellular voltage recordings converted from Intan RHD format to NWB, stimulus timing/TTL channels when available, electrode/channel metadata, and subject/session metadata.\n\nThese recordings support analysis of visually evoked responses across the porcine visual pathway, including ON/OFF response dynamics, spatial recruitment across optic-nerve electrode arrays, low-frequency field components, high-frequency compound-action-potential-like activity, and signal transmission from the retina/optic nerve toward visual cortex. The data were collected as part of acute swine studies using high-channel-count neural interfaces for large-scale mapping of visual signal propagation.\n\nFunding support: Advanced Research Projects Agency for Health, ARPA-H.",
+      "measurements": [],
+      "species": "",
+      "n_subjects": 0,
+      "repo": "dandi",
+      "url": "https://dandiarchive.org/dandiset/001794/draft",
+      "doi": "",
+      "readme": "This Dandiset contains acute in vivo electrophysiology recordings from anesthetized pigs acquired using high-density flexible microelectrode arrays placed around the optic nerve and, in selected experiments, over early visual cortex. Recordings were acquired with an Intan RHD system during visual stimulation paradigms including full-field light flashes and localized retinal stimulation. The dataset includes raw extracellular voltage recordings converted from Intan RHD format to NWB, stimulus timing/TTL channels when available, electrode/channel metadata, and subject/session metadata.\n\nThese recordings support analysis of visually evoked responses across the porcine visual pathway, including ON/OFF response dynamics, spatial recruitment across optic-nerve electrode arrays, low-frequency field components, high-frequency compound-action-potential-like activity, and signal transmission from the retina/optic nerve toward visual cortex. The data were collected as part of acute swine studies using high-channel-count neural interfaces for large-scale mapping of visual signal propagation.\n\nFunding support: Advanced Research Projects Agency for Health, ARPA-H.",
+      "file_types": {},
+      "file_tree": "(no files)",
+      "record_tables": {},
+      "external_publications": [],
+      "bucket_uri": "https://api.dandiarchive.org/api/dandisets/001794/versions/draft",
+      "access_type": "https",
+      "extracted_topics": [],
+      "license": "",
+      "size_bytes": 0,
+      "file_count": 0,
+      "relevance_note": "similar by tag overlap"
+    },
+    {
+      "id": "dandi:000056",
+      "title": "Internally organized mechanisms of the head direction sense",
+      "description": "The head-direction (HD) system functions as a compass, with member neurons robustly increasing their firing rates when the animal's head points in a specific direction. HD neurons may be driven by peripheral sensors or, as computational models postulate, internally generated (attractor) mechanisms. We addressed the contributions of stimulus-driven and internally generated activity by recording ensembles of HD neurons in the antero-dorsal thalamic nucleus and the post-subiculum of mice by comparing their activity in various brain states. The temporal correlation structure of HD neurons was preserved during sleep, characterized by a 60\u00b0-wide correlated neuronal firing (activity packet), both within and across these two brain structures. During rapid eye movement sleep, the spontaneous drift of the activity packet was similar to that observed during waking and accelerated tenfold during slow-wave sleep. These findings demonstrate that peripheral inputs impinge on an internally organized network, which provides amplification and enhanced precision of the HD signal.",
+      "measurements": [
+        "analytical technique",
+        "behavioral technique",
+        "multi electrode extracellular electrophysiology recording technique",
+        "signal filtering technique",
+        "spike sorting technique"
+      ],
+      "species": "House mouse",
+      "n_subjects": 7,
+      "repo": "dandi",
+      "url": "https://dandiarchive.org/dandiset/000056/0.250624.0430",
+      "doi": "10.48324/dandi.000056/0.250624.0430",
+      "readme": "The head-direction (HD) system functions as a compass, with member neurons robustly increasing their firing rates when the animal's head points in a specific direction. HD neurons may be driven by peripheral sensors or, as computational models postulate, internally generated (attractor) mechanisms. We addressed the contributions of stimulus-driven and internally generated activity by recording ensembles of HD neurons in the antero-dorsal thalamic nucleus and the post-subiculum of mice by comparing their activity in various brain states. The temporal correlation structure of HD neurons was preserved during sleep, characterized by a 60\u00b0-wide correlated neuronal firing (activity packet), both within and across these two brain structures. During rapid eye movement sleep, the spontaneous drift of the activity packet was similar to that observed during waking and accelerated tenfold during slow-wave sleep. These findings demonstrate that peripheral inputs impinge on an internally organized network, which provides amplification and enhanced precision of the HD signal.",
+      "file_types": {
+        "NWB": 40
+      },
+      "file_tree": "(root)/\n  \u2514\u2500 7 subjects: sub-Mouse12, sub-Mouse17, sub-Mouse20, ..., sub-Mouse28, sub-Mouse32 (7 total)\n  \u2514\u2500 representative subject (sub-Mouse12/) \u2014 other subjects have a similar layout:\nsub-Mouse12/  (5 files; nwb:5)\n  sub-Mouse12/sub-Mouse12_ses-Mouse12-120806_behavior+ecephys.nwb (28.5GB)\n  sub-Mouse12/sub-Mouse12_ses-Mouse12-120807_behavior+ecephys.nwb (3.4GB)\n  sub-Mouse12/sub-Mouse12_ses-Mouse12-120808_behavior+ecephys.nwb (3.8GB)\n  sub-Mouse12/sub-Mouse12_ses-Mouse12-120809_behavior+ecephys.nwb (34.8GB)\n  sub-Mouse12/sub-Mouse12_ses-Mouse12-120810_behavior+ecephys.nwb (27.9GB)",
+      "record_tables": {},
+      "external_publications": [],
+      "bucket_uri": "https://api.dandiarchive.org/api/dandisets/000056/versions/0.250624.0430",
+      "access_type": "https",
+      "extracted_topics": [],
+      "license": "",
+      "size_bytes": 207733008367,
+      "file_count": 40,
+      "relevance_note": "similar by tag overlap"
+    }
+  ],
+  "hypotheses": [],
+  "critic_reviews": [],
+  "papers_enriched": {},
+  "prior_papers": [],
+  "cross_dataset_compatibility": [],
+  "notebook": [
+    {
+      "ts": "2026-06-28T22:31:16",
+      "agent": "scout",
+      "action": "start",
+      "content": "seed_doi=10.26275/9ly6-az0n, seed_dataset=pennsieve:6, workflow_instance=local-dev"
+    },
+    {
+      "ts": "2026-06-28T22:31:16",
+      "agent": "pipeline",
+      "action": "seed_topics_full",
+      "content": "domain=[] broader=[] modality=[] species=[] technique=[]"
+    },
+    {
+      "ts": "2026-06-28T22:31:33",
+      "agent": "pipeline",
+      "action": "similar",
+      "content": "pennsieve:318 (oad): readme=1683 chars, file_tree=yes"
+    },
+    {
+      "ts": "2026-06-28T22:31:34",
+      "agent": "pipeline",
+      "action": "similar",
+      "content": "pennsieve:320 (oad): readme=1915 chars, file_tree=yes"
+    },
+    {
+      "ts": "2026-06-28T22:31:35",
+      "agent": "pipeline",
+      "action": "similar",
+      "content": "pennsieve:322 (oad): readme=1647 chars, file_tree=yes"
+    },
+    {
+      "ts": "2026-06-28T22:31:40",
+      "agent": "pipeline",
+      "action": "similar",
+      "content": "pennsieve:277 (requester_pays): readme=0 chars, file_tree=yes"
+    },
+    {
+      "ts": "2026-06-28T22:31:40",
+      "agent": "pipeline",
+      "action": "similar",
+      "content": "dandi:000956 (https): readme=1164 chars, file_tree=yes"
+    },
+    {
+      "ts": "2026-06-28T22:31:41",
+      "agent": "pipeline",
+      "action": "similar",
+      "content": "dandi:001794 (https): readme=1168 chars, file_tree=yes"
+    },
+    {
+      "ts": "2026-06-28T22:31:41",
+      "agent": "pipeline",
+      "action": "similar",
+      "content": "dandi:000056 (https): readme=1077 chars, file_tree=yes"
+    },
+    {
+      "ts": "2026-06-28T22:31:41",
+      "agent": "pipeline",
+      "action": "linked_pubs",
+      "content": "0 records (incl. protocols.io: 0)"
+    },
+    {
+      "ts": "2026-06-28T22:31:41",
+      "agent": "pipeline",
+      "action": "citing_papers",
+      "content": "0 unique citing papers"
+    },
+    {
+      "ts": "2026-06-28T22:31:41",
+      "agent": "pipeline",
+      "action": "reference_papers",
+      "content": "0 unique references"
+    },
+    {
+      "ts": "2026-06-28T22:31:41",
+      "agent": "dataset_compatibility",
+      "action": "error",
+      "content": "compatibility call failed: ValueError('No JSON object found in model output:\\n{[mock] response')"
+    },
+    {
+      "ts": "2026-06-28T22:31:41",
+      "agent": "scout",
+      "action": "fatal",
+      "content": "ValueError('No JSON object found in model output:\\n[mock] response')"
+    }
+  ]
+}

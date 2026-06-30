@@ -1,0 +1,14 @@
+{"ts": "2026-06-28T22:31:16", "agent": "scout", "action": "start", "content": "seed_doi=10.26275/9ly6-az0n, seed_dataset=pennsieve:6, workflow_instance=local-dev"}
+{"ts": "2026-06-28T22:31:16", "agent": "pipeline", "action": "seed_topics_full", "content": "domain=[] broader=[] modality=[] species=[] technique=[]"}
+{"ts": "2026-06-28T22:31:33", "agent": "pipeline", "action": "similar", "content": "pennsieve:318 (oad): readme=1683 chars, file_tree=yes"}
+{"ts": "2026-06-28T22:31:34", "agent": "pipeline", "action": "similar", "content": "pennsieve:320 (oad): readme=1915 chars, file_tree=yes"}
+{"ts": "2026-06-28T22:31:35", "agent": "pipeline", "action": "similar", "content": "pennsieve:322 (oad): readme=1647 chars, file_tree=yes"}
+{"ts": "2026-06-28T22:31:40", "agent": "pipeline", "action": "similar", "content": "pennsieve:277 (requester_pays): readme=0 chars, file_tree=yes"}
+{"ts": "2026-06-28T22:31:40", "agent": "pipeline", "action": "similar", "content": "dandi:000956 (https): readme=1164 chars, file_tree=yes"}
+{"ts": "2026-06-28T22:31:41", "agent": "pipeline", "action": "similar", "content": "dandi:001794 (https): readme=1168 chars, file_tree=yes"}
+{"ts": "2026-06-28T22:31:41", "agent": "pipeline", "action": "similar", "content": "dandi:000056 (https): readme=1077 chars, file_tree=yes"}
+{"ts": "2026-06-28T22:31:41", "agent": "pipeline", "action": "linked_pubs", "content": "0 records (incl. protocols.io: 0)"}
+{"ts": "2026-06-28T22:31:41", "agent": "pipeline", "action": "citing_papers", "content": "0 unique citing papers"}
+{"ts": "2026-06-28T22:31:41", "agent": "pipeline", "action": "reference_papers", "content": "0 unique references"}
+{"ts": "2026-06-28T22:31:41", "agent": "dataset_compatibility", "action": "error", "content": "compatibility call failed: ValueError('No JSON object found in model output:\\n{[mock] response')"}
+{"ts": "2026-06-28T22:31:41", "agent": "scout", "action": "fatal", "content": "ValueError('No JSON object found in model output:\\n[mock] response')"}
