@@ -64,9 +64,6 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
           f"linked pubs: {len(seed_summary.external_publications)}")
 
     # Topic extraction (LLM): drives the retrieval topical filter
-    '''
-    Use LLM to extract only the domain and broader topics for now, since the other categories are often too sparse to be useful
-    '''
     try:
         structured = topic_extractor.extract_topics(
             client,
@@ -92,13 +89,7 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
                f"using for filter: {','.join(seed_summary.extracted_topics)}")
     bb.dataset_summaries.append(seed_summary)
 
-    # --- Stage 0b: similar datasets (cross-repo) --- # similar是如何定义的呢
-    """
-    1. Find similar datasets across Pennsieve, DANDI, and OpenNeuro using the `similar_datasets` module.
-    2. For each similar dataset, fetch its details and inspection data.
-    3. Create a DatasetSummary for each similar dataset and append it to the blackboard.
-    4. Log 
-    """
+    # --- Stage 0b: similar datasets (cross-repo) ---
     print("\n--- finding similar datasets (cross-repo) ---")
     similar = similar_datasets.find_similar_cross_repo(
         detail, top_n_pennsieve=4, top_n_dandi=3, top_n_openneuro=3,
@@ -171,9 +162,6 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
                f"readme={len(summary.readme)} chars, file_tree={'yes' if summary.file_tree else 'no'}")
 
     # --- Stage 0c: linked + citing + reference papers ---
-    '''
-    1. pull the three types of papers: linked publications, citing papers, and one-hop references.
-    '''
     print("\n--- pulling linked publications, citing papers, and one-hop references ---")
     linked_papers = _pull_linked_paper_records(seed_summary.external_publications, bb)
     citing_papers = _pull_citing_papers(seed_summary.external_publications, bb, limit=30)
@@ -193,10 +181,6 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
                    f"compatibility check skipped: {e!r}")
 
     # --- Stage 0d: Dataset Framer ---
-    '''
-    1. it bundles everything together (seed dataset, similar datasets, linked/citing/reference papers) and formats it into a big prompt.
-    2. What the LLM actually produces — it reasons over all that context and outputs a structured DirectorBrief with: xxxxx
-    '''
     print("\n--- dataset_framer ---")
     dataset_framer.run(
         bb, client,
