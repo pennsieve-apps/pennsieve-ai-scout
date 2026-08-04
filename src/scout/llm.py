@@ -27,7 +27,7 @@ from pennsieve_llm import Governor
 #
 # us.* keeps inference in US regions (HIPAA-friendly default).
 MODEL_IDS: dict[str, str] = {
-    "opus":   os.environ.get("VP_MODEL_OPUS",   "us.anthropic.claude-opus-4-7"),
+    "opus":   os.environ.get("VP_MODEL_OPUS",   "us.anthropic.claude-opus-4-6"),
     "sonnet": os.environ.get("VP_MODEL_SONNET", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
     "haiku":  os.environ.get("VP_MODEL_HAIKU",  "us.anthropic.claude-haiku-4-5-20251001-v1:0"),
 }
