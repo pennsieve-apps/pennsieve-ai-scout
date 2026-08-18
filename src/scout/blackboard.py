@@ -105,6 +105,7 @@ class Blackboard:
     papers_enriched: dict = field(default_factory=dict)  # {doi: {title, authors, year, journal}} from CrossRef — authoritative source for inline citations
     prior_papers: list[dict] = field(default_factory=list)  # papers (linked from dataset + user --prior-paper) treated as off-limits prior art for hypothesis novelty: [{doi, title, abstract, authors, year, source_label}]
     cross_dataset_compatibility: list[dict] = field(default_factory=list)  # per-candidate compatibility verdict from the Dataset Compatibility Analyst: [{dataset_id, verdict, shared_modalities, cohort_match, incompatibilities, suggested_cross_dataset_hypotheses, rationale}]. Empty when only the seed exists.
+    model_assignments: dict = field(default_factory=dict)  # provenance: {role: {model_id, rank, source, at_floor}} — what actually served each pipeline role, so a downstream reader can tell whether a claim came from a reasoning-grade model or a degraded one
     notebook: list[dict] = field(default_factory=list)
 
     def log(self, agent: str, action: str, content: str = "") -> None:

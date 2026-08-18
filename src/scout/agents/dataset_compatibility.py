@@ -22,7 +22,7 @@ from scout.agents._common import call_json, load_prompt
 from scout.blackboard import Blackboard, DatasetSummary
 from scout.llm import LLMClient
 
-MODEL = "sonnet"
+MODEL = "synthesis"
 AGENT = "dataset_compatibility"
 
 _VALID_VERDICTS = {"usable", "partial", "not_usable"}

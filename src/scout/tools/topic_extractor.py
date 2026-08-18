@@ -19,7 +19,7 @@ from __future__ import annotations
 from scout.agents._common import call_json, load_prompt
 from scout.llm import LLMClient
 
-MODEL = "sonnet"
+MODEL = "bulk"
 AGENT = "topic_extractor"
 
 CATEGORIES = ("domain", "broader", "modality", "species", "technique")
