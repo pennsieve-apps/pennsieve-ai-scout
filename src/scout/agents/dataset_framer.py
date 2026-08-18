@@ -14,7 +14,7 @@ from scout.agents._common import call_json, format_datasets, load_prompt
 from scout.blackboard import Blackboard, DirectorBrief
 from scout.llm import LLMClient
 
-MODEL = "opus"
+MODEL = "reasoning"
 AGENT = "dataset_framer"
 
 

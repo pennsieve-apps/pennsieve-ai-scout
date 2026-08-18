@@ -22,7 +22,7 @@ from scout.agents._common import call_json, load_prompt
 from scout.blackboard import Blackboard, Claim
 from scout.llm import LLMClient
 
-MODEL = "sonnet"
+MODEL = "synthesis"
 AGENT = "verifier"
 
 EXACT_THRESHOLD = 1.0  # full substring match (case-insensitive)

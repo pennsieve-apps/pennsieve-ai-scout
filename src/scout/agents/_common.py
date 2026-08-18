@@ -124,7 +124,7 @@ def call_json(
     system: str,
     user: str,
     run_id: str,
-    model: str = "opus",
+    model: str = "reasoning",
     max_tokens: int = 16384,
 ) -> dict:
     """Call the model serving `model` (a pipeline role) and parse JSON from

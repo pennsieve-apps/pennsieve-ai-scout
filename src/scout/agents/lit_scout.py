@@ -5,7 +5,7 @@ from scout.blackboard import Blackboard, Claim
 from scout.llm import LLMClient
 from scout.tools import europe_pmc
 
-MODEL = "sonnet"
+MODEL = "synthesis"
 AGENT = "lit_scout"
 PER_QUERY_PAGE_SIZE = 25
 BATCH_SIZE = 25  # papers per LLM call — keeps prompt size predictable and yield consistent
