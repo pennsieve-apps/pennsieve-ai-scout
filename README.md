@@ -45,9 +45,40 @@ If the layer is absent, `bb.deep_evidence` is empty and downstream stages degrad
 ## LLM access
 
 All LLM calls route through the Pennsieve LLM Governor Lambda
-(`$LLM_GOVERNOR_FUNCTION`) — see `src/scout/llm.py`. Models are addressed by
-logical name (`opus`, `sonnet`, `haiku`) and resolved to Bedrock model IDs at
-runtime.
+(`$LLM_GOVERNOR_FUNCTION`) — see `src/scout/llm.py`.
+
+Models are addressed by the **role they play in the pipeline**, never by
+vendor family — see `src/scout/models.py`:
+
+| Role | Used by | Floor | Ceiling |
+|---|---|---|---|
+| `reasoning` | `dataset_framer` | Sonnet 4.6 | — |
+| `synthesis` | `verifier`, `dataset_compatibility`, `lit_scout` | Sonnet 4.5 | Opus 4.6 |
+| `bulk` | `topic_extractor` | Haiku 3.5 | Haiku 4.5 |
+
+Selection is rank-based rather than a hardcoded preference chain: each role
+takes the highest-ranked permitted model inside its floor/ceiling band, so a
+model Scout has never seen can still be ordered against ones it has. The
+floor is what stops a full run from silently degrading onto a model whose
+output isn't worth the compute the later stages spend on it; the ceiling
+keeps high-volume roles off expensive models.
+
+**Preflight.** Bedrock has no Models API, so the governor's allow-list is
+discovered by deliberately tripping its `model_not_allowed` 403 with a
+sentinel model ID before any real work starts. The resulting manifest is
+printed at startup and recorded on the blackboard as `model_assignments`, so
+a downstream reader can tell whether a claim came from a reasoning-grade
+model or a degraded one. If no permitted model meets a role's floor, the run
+aborts at preflight (exit 5) with an actionable message instead of spending
+the full budget. Should a model still be rejected mid-run, the allow-list is
+re-learned from the 403 and the role re-resolved once.
+
+**Overrides.** `VP_MODEL_REASONING` / `VP_MODEL_SYNTHESIS` / `VP_MODEL_BULK`
+pin a role to a specific model ID, bypassing floor and ceiling — explicit
+operator intent, flagged in the manifest but honored. The legacy
+`VP_MODEL_OPUS` / `_SONNET` / `_HAIKU` variables still map to
+`reasoning` / `synthesis` / `bulk`. Set `VP_MODEL_SELECT=1` on an
+interactive terminal to choose per role from the allow-list at startup.
 
 ## Status
 
@@ -65,9 +96,15 @@ operational governor Lambda. Not yet deployed to a Pennsieve compute node.
   if the RAG layer is mounted (retrieval triggers embedding the query). When
   the governor's `/v1/embed` and `/v1/rerank` HTTP routes ship, these
   modules should migrate to use them.
-- **Model IDs in `llm.py`** are placeholders. The real Bedrock model IDs
-  come from the governor's SSM allow-list; override via
-  `VP_MODEL_OPUS` / `VP_MODEL_SONNET` / `VP_MODEL_HAIKU` env vars.
+- **Thinking and effort are not yet wired.** No `thinking` parameter is
+  sent, so a role served by a model that runs adaptive thinking by default
+  (Opus 5) spends output tokens on reasoning without `output_config.effort`
+  tuning. `bulk`'s ceiling keeps the 512-token `topic_extractor` off those
+  models for now; lifting it needs the thinking/effort work first.
+- **JSON is still forced with the prefill trick** rather than structured
+  outputs (`output_config.format`), which is GA on Bedrock and would remove
+  the prefill/no-prefill branching entirely. Blocked on confirming the
+  governor's lambda-invoke transport passes `output_config` through.
 
 ## Pipeline
 
