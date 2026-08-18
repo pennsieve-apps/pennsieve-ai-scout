@@ -13,6 +13,7 @@ from pathlib import Path
 
 from scout.blackboard import Blackboard
 from scout.llm import LLMClient
+from scout.models import ModelNotAvailable
 from scout.pipeline import run_scout
 from scout.tools import pennsieve_discover
 
@@ -70,6 +71,20 @@ def main() -> int:
            f"workflow_instance={workflow_instance_id}")
 
     client = LLMClient()
+
+    # --- LLM preflight: learn the allow-list, assign roles, fail loud ---
+    # Done before any pipeline work so an inadequate model for a
+    # reasoning-critical role costs nothing rather than a full run.
+    try:
+        assignments = client.preflight()
+    except ModelNotAvailable as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        bb.log("scout", "fatal", f"model preflight failed: {e}")
+        _write_outputs(bb, client, output_dir)
+        return 5
+    bb.model_assignments = assignments
+    bb.log("scout", "models",
+           ", ".join(f"{role}={a['model_id']}" for role, a in sorted(assignments.items())))
 
     # --- Run the scout pipeline ---
     try:
