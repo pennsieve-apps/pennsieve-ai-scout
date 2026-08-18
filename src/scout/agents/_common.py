@@ -127,18 +127,20 @@ def call_json(
     model: str = "opus",
     max_tokens: int = 16384,
 ) -> dict:
-    """Call the model and parse a JSON object from its response.
+    """Call the model serving `model` (a pipeline role) and parse JSON from
+    its response.
 
-    For models that support it we use the canonical "prefill `{`" trick to
-    force JSON output. Anthropic's *extended-thinking* models (Opus 4.5+,
-    likely future Sonnet versions) reject assistant-message prefill — the
-    conversation must end with a user message — so for those we skip the
-    prefill and rely on `extract_json` to recover JSON from whatever the
-    model returns (handles fenced and unfenced).
+    Where the target model supports it we use the canonical "prefill `{`"
+    trick to force JSON output. Claude 4.6 and newer reject an
+    assistant-message prefill — the conversation must end on a user turn —
+    so for those we skip it and rely on `extract_json` to recover JSON from
+    whatever comes back (fenced or unfenced).
     """
-    # Conservative: only assume opus has extended thinking. Expand this set
-    # if Sonnet/Haiku gain extended thinking later.
-    supports_prefill = model not in ("opus",)
+    # Ask the client rather than keying off the role name: a role can be
+    # served by a different concrete model than its first choice when the
+    # backend's allow-list doesn't permit it, and prefill rules differ by
+    # model.
+    supports_prefill = client.supports_prefill(model)
 
     msg = client.messages_create(
         model=model,
@@ -149,7 +151,13 @@ def call_json(
         run_id=run_id,
         agent=agent,
     )
-    text = ("{" if supports_prefill else "") + first_text(msg)
+    # Re-ask after the call rather than reusing the value from before it: a
+    # role rejected mid-call is re-resolved onto another model, which may
+    # have different prefill rules. Asking the client again reflects whatever
+    # actually served the request, and avoids depending on any attribute of
+    # the SDK's response object.
+    prefilled = supports_prefill and client.supports_prefill(model)
+    text = ("{" if prefilled else "") + first_text(msg)
     return extract_json(text)
 
 
