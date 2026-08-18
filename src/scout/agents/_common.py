@@ -149,5 +149,20 @@ def call_json(
         run_id=run_id,
         agent=agent,
     )
-    text = ("{" if supports_prefill else "") + msg.content[0].text
+    text = ("{" if supports_prefill else "") + first_text(msg)
     return extract_json(text)
+
+
+def first_text(msg) -> str:
+    """The first text block's text.
+
+    Never index `content[0]` directly: models with thinking enabled put a
+    `thinking` block first. Opus 5 runs adaptive thinking even when the
+    request omits the `thinking` parameter, so a tier pinned or degraded
+    onto it would otherwise raise AttributeError on a `ThinkingBlock`.
+    """
+    for block in msg.content:
+        if getattr(block, "type", None) == "text":
+            return block.text
+    kinds = ", ".join(getattr(b, "type", "?") for b in msg.content) or "(empty)"
+    raise ValueError(f"No text block in model response; got: {kinds}")
