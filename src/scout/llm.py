@@ -16,6 +16,7 @@ re-resolved, and the call is retried once.
 """
 from __future__ import annotations
 
+import os
 import re
 import time
 from datetime import datetime
@@ -24,9 +25,11 @@ import anthropic
 from pennsieve_llm import Governor
 
 from scout.models import (
+    ROLES,
     ModelNotAvailable,
     ModelResolver,
     discover_allowed_models,
+    is_access_denied,
     is_model_not_allowed,
     parse_allowed_models,
     render_manifest,
@@ -70,6 +73,17 @@ def supports_sampling(model_id: str) -> bool:
     return not any(tag in _family(model_id) for tag in _NO_SAMPLING)
 
 
+# Two distinct 403s can each force one re-resolution (model_not_allowed and
+# access_denied), so allow a third attempt to actually succeed.
+MAX_ATTEMPTS = 3
+
+# The governor transport ignores httpx timeouts — it dispatches through boto3,
+# whose read timeout is 60s with no Config override. A failing call therefore
+# costs 60s x botocore retries x this, so keep the SDK's own retry budget low
+# or a doomed request burns 15 minutes before surfacing.
+SDK_MAX_RETRIES = int(os.environ.get("VP_LLM_MAX_RETRIES", "1"))
+
+
 class LLMClient:
     """Thin facade around the `anthropic.Anthropic` client returned by the
     governor SDK. Agents call `messages_create` with a pipeline role name;
@@ -87,7 +101,7 @@ class LLMClient:
 
     # -- preflight ------------------------------------------------------
 
-    def preflight(self) -> dict:
+    def preflight(self, strict: bool = True) -> dict:
         """Discover the allow-list, assign every role, print the manifest.
 
         Returns role → assignment provenance, suitable for recording on the
@@ -100,9 +114,103 @@ class LLMClient:
         if allowed:
             self._resolver.learn(allowed)
         select_interactively(self._resolver)
-        assignments = self._resolver.resolve_all()
+        self._assign_roles(strict)
+        self._verify_usable(strict)
+        # Re-assign: verification may have dropped a model as unusable.
+        assignments = self._assign_roles(strict)
         print(render_manifest(self._resolver, assignments), flush=True)
         return self._resolver.assignments()
+
+    def _assign_roles(self, strict: bool) -> dict:
+        """Resolve every role. In strict mode the first role that cannot be
+        served aborts; otherwise it's reported and left unassigned, so the
+        stages using it fail individually and get skipped."""
+        for role in ROLES:
+            try:
+                self._resolver.resolve(role)
+            except ModelNotAvailable as exc:
+                if strict:
+                    raise
+                print(
+                    f"  [llm] ! no usable model for the {role!r} role; stages "
+                    f"using it will fail and be skipped.\n{exc}",
+                    flush=True,
+                )
+        return self._resolver.resolved_assignments()
+
+    def _verify_usable(self, strict: bool = True, max_swaps: int = 6) -> None:
+        """Confirm each assigned model can actually be invoked.
+
+        The allow-list says what the governor permits, not what its IAM role
+        can reach: a permitted model still returns 403 access_denied if the
+        role lacks bedrock:InvokeModel for it. One 1-token call per role turns
+        that into a startup failure instead of a surprise partway through a
+        run that has already spent 20 minutes.
+
+        Only permission errors are treated as verdicts. A network or
+        throttling failure here says nothing about usability, so it's left for
+        the real call to deal with rather than disqualifying a model.
+        """
+        swaps = 0
+        for role in ROLES:
+            while True:
+                try:
+                    model_id = self._resolver.resolve(role)
+                except ModelNotAvailable:
+                    if strict:
+                        raise
+                    break  # already reported by _assign_roles
+                try:
+                    self._probe(model_id)
+                except anthropic.PermissionDeniedError as exc:
+                    if swaps >= max_swaps:
+                        raise
+                    if is_access_denied(exc):
+                        swaps += 1
+                        print(
+                            f"  [llm] ! {model_id} is permitted but not "
+                            f"invokable (IAM on the governor role); dropping it "
+                            f"for {role!r}",
+                            flush=True,
+                        )
+                        self._resolver.mark_unusable(model_id)
+                        continue
+                    if is_model_not_allowed(exc):
+                        learned = parse_allowed_models(exc)
+                        if learned:
+                            swaps += 1
+                            self._resolver.learn(learned)
+                            continue
+                    raise
+                except Exception as exc:  # noqa: BLE001 - not a usability signal
+                    print(
+                        f"  [llm] preflight could not verify {model_id} "
+                        f"({type(exc).__name__}); continuing.",
+                        flush=True,
+                    )
+                break
+
+    def _send(self, kwargs: dict):
+        """Issue the request, streaming when the client supports it.
+
+        Streaming is not an optimization here, it is load-bearing. The
+        governor's lambda-invoke transport hands httpx a lazily-consumed byte
+        stream only for `text/event-stream` responses; for a non-streaming one
+        it drains the entire Lambda EventStream inside `handle_request` before
+        returning. Botocore's read timeout is 60s, and a large completion takes
+        far longer than that to generate, so a non-streaming call on a big
+        prompt reliably dies with ReadTimeoutError. Streaming keeps bytes
+        moving so no single read comes close to the limit.
+        """
+        client = self._gov.client()
+        if hasattr(client, "with_options"):
+            client = client.with_options(max_retries=SDK_MAX_RETRIES)
+        stream = getattr(client.messages, "stream", None)
+        if stream is None:
+            # MockClient (offline / tests) has no streaming surface.
+            return client.messages.create(**kwargs)
+        with stream(**kwargs) as s:
+            return s.get_final_message()
 
     def _probe(self, model_id: str) -> None:
         """Minimal request used to trip the governor's allow-list rejection."""
@@ -183,17 +291,30 @@ class LLMClient:
 
             t0 = time.monotonic()
             try:
-                resp = self._gov.client().messages.create(**kwargs)
+                resp = self._send(kwargs)
             except anthropic.PermissionDeniedError as exc:
-                allowed = parse_allowed_models(exc) if is_model_not_allowed(exc) else None
-                if allowed is None or attempt == 2:
+                if attempt == MAX_ATTEMPTS:
                     raise
-                print(
-                    f"  [llm] ! {model_id} rejected by the allow-list; "
-                    f"re-resolving role {model!r}",
-                    flush=True,
-                )
-                self._resolver.learn(allowed)
+                if is_model_not_allowed(exc):
+                    allowed = parse_allowed_models(exc)
+                    if allowed is None:
+                        raise
+                    print(
+                        f"  [llm] ! {model_id} rejected by the allow-list; "
+                        f"re-resolving role {model!r}",
+                        flush=True,
+                    )
+                    self._resolver.learn(allowed)
+                elif is_access_denied(exc):
+                    print(
+                        f"  [llm] ! {model_id} is on the allow-list but the "
+                        f"governor cannot invoke it (IAM); re-resolving role "
+                        f"{model!r}",
+                        flush=True,
+                    )
+                    self._resolver.mark_unusable(model_id)
+                else:
+                    raise
                 model_id = self.resolve_model(model)
                 continue
             break

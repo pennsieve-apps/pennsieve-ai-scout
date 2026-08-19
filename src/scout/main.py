@@ -13,7 +13,7 @@ from pathlib import Path
 
 from scout.blackboard import Blackboard
 from scout.llm import LLMClient
-from scout.models import ModelNotAvailable
+from scout.models import ModelNotAvailable, degraded_ok
 from scout.pipeline import run_scout
 from scout.tools import pennsieve_discover
 
@@ -76,7 +76,7 @@ def main() -> int:
     # Done before any pipeline work so an inadequate model for a
     # reasoning-critical role costs nothing rather than a full run.
     try:
-        assignments = client.preflight()
+        assignments = client.preflight(strict=not degraded_ok())
     except ModelNotAvailable as e:
         print(f"ERROR: {e}", file=sys.stderr)
         bb.log("scout", "fatal", f"model preflight failed: {e}")
@@ -94,7 +94,14 @@ def main() -> int:
         _write_outputs(bb, client, output_dir)
         raise
 
-    bb.log("scout", "done", "")
+    if bb.degraded:
+        skipped = ", ".join(d["stage"] for d in bb.degraded)
+        bb.log("scout", "done_degraded", f"skipped stages: {skipped}")
+        print(f"\nWARNING: completed with {len(bb.degraded)} skipped stage(s): "
+              f"{skipped}\n  This blackboard is INCOMPLETE — output built on it is "
+              f"not a full run.", file=sys.stderr)
+    else:
+        bb.log("scout", "done", "")
 
     # --- Write outputs to $OUTPUT_DIR ---
     _write_outputs(bb, client, output_dir)

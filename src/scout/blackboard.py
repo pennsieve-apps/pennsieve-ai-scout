@@ -82,6 +82,14 @@ class CriticReview:
     iteration: int = 1
 
 
+# Fields holding dataclass instances, which `load` reconstructs explicitly
+# rather than assigning the raw dicts.
+_DATACLASS_VALUED = frozenset({
+    "literature_claims", "dataset_summaries", "hypotheses",
+    "critic_reviews", "director_brief",
+})
+
+
 @dataclass
 class Blackboard:
     research_question: str
@@ -105,6 +113,7 @@ class Blackboard:
     papers_enriched: dict = field(default_factory=dict)  # {doi: {title, authors, year, journal}} from CrossRef — authoritative source for inline citations
     prior_papers: list[dict] = field(default_factory=list)  # papers (linked from dataset + user --prior-paper) treated as off-limits prior art for hypothesis novelty: [{doi, title, abstract, authors, year, source_label}]
     cross_dataset_compatibility: list[dict] = field(default_factory=list)  # per-candidate compatibility verdict from the Dataset Compatibility Analyst: [{dataset_id, verdict, shared_modalities, cohort_match, incompatibilities, suggested_cross_dataset_hypotheses, rationale}]. Empty when only the seed exists.
+    degraded: list[dict] = field(default_factory=list)  # stages skipped after a failure under VP_DEGRADED_OK: [{stage, error}]. Non-empty means this blackboard is INCOMPLETE — downstream output built on it is not a full run
     model_assignments: dict = field(default_factory=dict)  # provenance: {role: {model_id, rank, source, at_floor}} — what actually served each pipeline role, so a downstream reader can tell whether a claim came from a reasoning-grade model or a degraded one
     notebook: list[dict] = field(default_factory=list)
 
@@ -144,13 +153,11 @@ class Blackboard:
             research_question=raw.get("research_question", ""),
             subsystem=raw.get("subsystem", ""),
         )
+        # Copy every plain field by name rather than maintaining a literal
+        # list of them — the old allowlist silently dropped any field added
+        # later (which is exactly what happened to model_assignments).
         for k, v in raw.items():
-            if k in ("papers_seen", "deep_evidence", "deep_read_stats",
-                     "collaboration_candidates", "notebook", "lab_profile",
-                     "search_queries", "research_question", "subsystem",
-                     "run_id", "search_query", "max_iterations",
-                     "iterations_completed", "stop_reason", "papers_enriched",
-                     "prior_papers", "cross_dataset_compatibility"):
+            if k in cls.__dataclass_fields__ and k not in _DATACLASS_VALUED:
                 setattr(bb, k, v)
         bb.literature_claims = [_to(Claim, x) for x in raw.get("literature_claims") or []]
         bb.dataset_summaries = [_to(DatasetSummary, x) for x in raw.get("dataset_summaries") or []]

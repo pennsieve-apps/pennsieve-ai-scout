@@ -263,3 +263,85 @@ def test_manifest_names_every_role_and_the_allow_list():
         assert role in text
     assert "us.anthropic.claude-sonnet-4-6" in text
     assert "at floor" in text
+
+
+# --- access_denied: permitted but not invokable -------------------------
+
+ACCESS_DENIED_BODY = {
+    "error": "access_denied",
+    "message": ("Access denied for model "
+                "'us.anthropic.claude-haiku-4-5-20251001-v1:0'. This is likely "
+                "an IAM permission issue on the governor Lambda role."),
+}
+
+
+def test_access_denied_is_distinguished_from_model_not_allowed():
+    denied = FakeDenied(ACCESS_DENIED_BODY)
+    assert m.is_access_denied(denied)
+    assert not m.is_model_not_allowed(denied)
+
+    not_allowed = FakeDenied(ERROR_BODY)
+    assert m.is_model_not_allowed(not_allowed)
+    assert not m.is_access_denied(not_allowed)
+
+
+def test_access_denied_carries_no_allow_list():
+    """Which is why it needs its own handling — there's nothing to learn."""
+    assert m.parse_allowed_models(FakeDenied(ACCESS_DENIED_BODY)) is None
+
+
+def test_unusable_model_is_skipped_and_role_re_resolves():
+    """The 2026-08-18 run: Haiku 4.5 is permitted but the governor's IAM role
+    can't invoke it, so bulk must fall to the next permitted model."""
+    r = m.ModelResolver(GOVERNOR_ALLOW_LIST)
+    assert r.resolve("bulk") == "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    r.mark_unusable("us.anthropic.claude-haiku-4-5-20251001-v1:0")
+    assert r.resolve("bulk") == "us.anthropic.claude-3-5-haiku-20241022-v1:0"
+
+
+def test_unusable_matches_across_dated_spellings():
+    r = m.ModelResolver(GOVERNOR_ALLOW_LIST)
+    r.mark_unusable("us.anthropic.claude-haiku-4-5")   # undated
+    assert r.resolve("bulk") == "us.anthropic.claude-3-5-haiku-20241022-v1:0"
+
+
+def test_all_usable_models_exhausted_aborts_with_iam_hint():
+    r = m.ModelResolver(GOVERNOR_ALLOW_LIST)
+    for model_id in GOVERNOR_ALLOW_LIST:
+        r.mark_unusable(model_id)
+    with pytest.raises(m.ModelNotAvailable) as excinfo:
+        r.resolve("bulk")
+    msg = str(excinfo.value)
+    assert "not invokable" in msg and "IAM" in msg
+
+
+def test_unusable_optimistic_pick_without_an_allow_list_fails_clearly():
+    r = m.ModelResolver()
+    r.mark_unusable(m.ROLES["reasoning"].optimistic)
+    with pytest.raises(m.ModelNotAvailable, match="VP_MODEL_REASONING"):
+        r.resolve("reasoning")
+
+
+def test_marking_unusable_leaves_other_roles_alone():
+    r = m.ModelResolver(GOVERNOR_ALLOW_LIST)
+    r.resolve_all()
+    reasoning_before = r.assignments()["reasoning"]["model_id"]
+    r.mark_unusable("us.anthropic.claude-haiku-4-5-20251001-v1:0")
+    assert r.resolve("reasoning") == reasoning_before
+
+
+def test_note_distinguishes_unusable_from_unlisted():
+    """"not on the allow-list" is wrong for a model that is listed but blocked."""
+    r = m.ModelResolver(GOVERNOR_ALLOW_LIST)
+    r.mark_unusable(m.ROLES["bulk"].optimistic)
+    r.resolve("bulk")
+    note = r.assignments()["bulk"]["note"]
+    assert "permitted but not invokable" in note
+    assert "not on the allow-list" not in note
+
+
+def test_manifest_flags_unusable_models():
+    r = m.ModelResolver(GOVERNOR_ALLOW_LIST)
+    r.mark_unusable("us.anthropic.claude-haiku-4-5-20251001-v1:0")
+    text = m.render_manifest(r, r.resolve_all())
+    assert "[not invokable — IAM]" in text
