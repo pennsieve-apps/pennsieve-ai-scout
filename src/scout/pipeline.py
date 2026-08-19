@@ -105,7 +105,11 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
                 "technique=[" + ",".join(structured.get("technique", [])) + "]",
             )
     except Exception as e:
-        bb.log("pipeline", "seed_topic_warn", f"{seed_dataset_id}: {e!r}")
+        # Topics anchor the RAG topical filter; a failed extraction quietly
+        # weakens retrieval for the whole run, so it goes on the ledger.
+        detail = f"{type(e).__name__}: {e}"
+        bb.degraded.append({"stage": "topic_extractor", "error": detail[:500]})
+        bb.log("topic_extractor", "degraded", detail[:300])
     if seed_summary.extracted_topics:
         bb.log("pipeline", "seed_topics",
                f"using for filter: {','.join(seed_summary.extracted_topics)}")
