@@ -31,6 +31,7 @@ from scout.models import (
     discover_allowed_models,
     is_access_denied,
     is_model_not_allowed,
+    is_model_unavailable_upstream,
     parse_allowed_models,
     render_manifest,
     select_interactively,
@@ -173,7 +174,7 @@ class LLMClient:
                             f"for {role!r}",
                             flush=True,
                         )
-                        self._resolver.mark_unusable(model_id)
+                        self._resolver.mark_unusable(model_id, "IAM on the governor role")
                         continue
                     if is_model_not_allowed(exc):
                         learned = parse_allowed_models(exc)
@@ -182,7 +183,19 @@ class LLMClient:
                             self._resolver.learn(learned)
                             continue
                     raise
-                except Exception as exc:  # noqa: BLE001 - not a usability signal
+                except Exception as exc:  # noqa: BLE001
+                    if is_model_unavailable_upstream(exc) and swaps < max_swaps:
+                        swaps += 1
+                        print(
+                            f"  [llm] ! {model_id} is not available upstream "
+                            f"(Bedrock 404 behind the governor); dropping it "
+                            f"for {role!r}",
+                            flush=True,
+                        )
+                        self._resolver.mark_unusable(model_id, "Bedrock 404 upstream")
+                        continue
+                    # Anything else (network blip, throttle) says nothing
+                    # about usability — leave it for the real call.
                     print(
                         f"  [llm] preflight could not verify {model_id} "
                         f"({type(exc).__name__}); continuing.",
@@ -292,6 +305,17 @@ class LLMClient:
             t0 = time.monotonic()
             try:
                 resp = self._send(kwargs)
+            except anthropic.InternalServerError as exc:
+                if attempt == MAX_ATTEMPTS or not is_model_unavailable_upstream(exc):
+                    raise
+                print(
+                    f"  [llm] ! {model_id} is not available upstream (Bedrock "
+                    f"404 behind the governor); re-resolving role {model!r}",
+                    flush=True,
+                )
+                self._resolver.mark_unusable(model_id, "Bedrock 404 upstream")
+                model_id = self.resolve_model(model)
+                continue
             except anthropic.PermissionDeniedError as exc:
                 if attempt == MAX_ATTEMPTS:
                     raise
@@ -312,7 +336,7 @@ class LLMClient:
                         f"{model!r}",
                         flush=True,
                     )
-                    self._resolver.mark_unusable(model_id)
+                    self._resolver.mark_unusable(model_id, "IAM on the governor role")
                 else:
                     raise
                 model_id = self.resolve_model(model)

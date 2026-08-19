@@ -340,8 +340,43 @@ def test_note_distinguishes_unusable_from_unlisted():
     assert "not on the allow-list" not in note
 
 
-def test_manifest_flags_unusable_models():
+def test_manifest_flags_unusable_models_with_their_reason():
+    """The label must say WHY — an IAM block and a Bedrock 404 have different
+    owners (governor role policy vs. model availability on the account)."""
+    r = m.ModelResolver(GOVERNOR_ALLOW_LIST)
+    r.mark_unusable("us.anthropic.claude-haiku-4-5-20251001-v1:0", "IAM on the governor role")
+    r.mark_unusable("us.anthropic.claude-3-5-haiku-20241022-v1:0", "Bedrock 404 upstream")
+    text = m.render_manifest(r, r.resolve_all())
+    assert "[not servable — IAM on the governor role]" in text
+    assert "[not servable — Bedrock 404 upstream]" in text
+
+
+# --- upstream Bedrock 404 behind a governor 500 --------------------------
+
+BEDROCK_404 = {
+    "error": "bedrock_error",
+    "message": ("Bedrock error: operation error Bedrock Runtime: ConverseStream, "
+                "https response error StatusCode: 404, RequestID: 808d70d0"),
+}
+
+
+def test_bedrock_streaming_404_is_deterministic_unusable():
+    """Haiku 3.5 in the 2026-08-19 run: the governor 500s because Bedrock
+    404s the model for ConverseStream. Retrying can't help."""
+    assert m.is_model_unavailable_upstream(FakeDenied(BEDROCK_404))
+
+
+def test_generic_500_is_not_treated_as_unusable():
+    """A transient governor error must not permanently disqualify a model."""
+    assert not m.is_model_unavailable_upstream(
+        FakeDenied({"error": "bedrock_error", "message": "throttled, try again"}))
+    assert not m.is_model_unavailable_upstream(Exception("Error code: 500 - internal"))
+
+
+def test_both_haikus_dead_sends_bulk_to_cheapest_sonnet():
+    """The current dev reality: Haiku 4.5 IAM-blocked, Haiku 3.5 Bedrock-404.
+    bulk must land on the cheapest usable model above its ceiling."""
     r = m.ModelResolver(GOVERNOR_ALLOW_LIST)
     r.mark_unusable("us.anthropic.claude-haiku-4-5-20251001-v1:0")
-    text = m.render_manifest(r, r.resolve_all())
-    assert "[not invokable — IAM]" in text
+    r.mark_unusable("us.anthropic.claude-3-5-haiku-20241022-v1:0")
+    assert r.resolve("bulk") == "us.anthropic.claude-sonnet-4-5-20250929-v1:0"

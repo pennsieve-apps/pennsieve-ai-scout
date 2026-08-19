@@ -7,12 +7,38 @@ PDF download is via Europe PMC's render endpoint (works reliably).
 """
 from __future__ import annotations
 
+import time
 import xml.etree.ElementTree as ET
 
 import httpx
 
 BASE = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 NCBI_EFETCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+
+
+def _get_with_retry(url: str, params: dict, attempts: int = 3, backoff: float = 1.5) -> httpx.Response:
+    """GET with retries on transient failures.
+
+    Europe PMC intermittently answers valid search URLs with 404 — the same
+    query 404s once and succeeds seconds later (observed in production, and
+    consistent with WAF/throttle behaviour rather than a real missing route).
+    So 404 is retried here alongside the usual 429/5xx/transport failures.
+    """
+    last: Exception | None = None
+    for attempt in range(attempts):
+        if attempt:
+            time.sleep(backoff * attempt)
+        try:
+            r = httpx.get(url, params=params, timeout=30)
+            if r.status_code in (404, 429) or r.status_code >= 500:
+                last = httpx.HTTPStatusError(
+                    f"status {r.status_code}", request=r.request, response=r)
+                continue
+            r.raise_for_status()
+            return r
+        except httpx.TransportError as e:
+            last = e
+    raise last  # type: ignore[misc]
 
 
 def search(query: str, page_size: int = 25) -> list[dict]:
@@ -25,8 +51,7 @@ def search(query: str, page_size: int = 25) -> list[dict]:
         "pageSize": page_size,
         "resultType": "core",
     }
-    r = httpx.get(f"{BASE}/search", params=params, timeout=30)
-    r.raise_for_status()
+    r = _get_with_retry(f"{BASE}/search", params)
     results = r.json().get("resultList", {}).get("result", [])
     out = []
     for x in results:

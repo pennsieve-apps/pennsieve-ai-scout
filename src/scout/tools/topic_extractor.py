@@ -55,11 +55,12 @@ def extract_topics(
             max_tokens=512,
         )
     except Exception as e:
-        # Don't silently swallow — log so the caller can see why tags came back empty.
-        # Common Bedrock failure: prefill not supported on a particular profile.
+        # Print for the live log, then let it propagate — the pipeline records
+        # the failure on bb.degraded so the blackboard doesn't pass an
+        # LLM-failure-shaped hole off as "this dataset genuinely has no topics".
         import sys
         print(f"  [topic_extractor] failed: {type(e).__name__}: {str(e)[:200]}", file=sys.stderr)
-        return {k: [] for k in CATEGORIES}
+        raise
 
     out: dict[str, list[str]] = {}
     for cat in CATEGORIES:
