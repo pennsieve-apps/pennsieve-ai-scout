@@ -237,6 +237,20 @@ def is_model_not_allowed(exc: Exception) -> bool:
     return "model_not_allowed" in str(exc)
 
 
+def is_access_denied(exc: Exception) -> bool:
+    """True for a governor `access_denied` 403.
+
+    Distinct from `model_not_allowed`: the model *is* on the allow-list, but
+    the governor's Lambda role can't invoke it (missing bedrock:InvokeModel).
+    Permitted and usable are not the same thing, and this 403 carries no
+    `allowedModels` — so it has to be handled on its own terms.
+    """
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict) and body.get("error") == "access_denied":
+        return True
+    return "access_denied" in str(exc)
+
+
 class ModelNotAvailable(RuntimeError):
     """No permitted model clears a role's floor — raised at preflight."""
 
@@ -278,6 +292,9 @@ class ModelResolver:
         self._allowed: list[str] | None = list(allowed) if allowed else None
         self._assigned: dict[str, Assignment] = {}
         self._announced: set[str] = set()
+        # Family keys of models the backend permits but cannot actually
+        # invoke. Learned from access_denied, never from the allow-list.
+        self._unusable: set[str] = set()
 
     # -- state ----------------------------------------------------------
 
@@ -293,6 +310,20 @@ class ModelResolver:
             for role, assignment in list(self._assigned.items()):
                 if family_key(assignment.model_id) not in permitted:
                     del self._assigned[role]
+
+    def mark_unusable(self, model_id: str) -> None:
+        """Record that `model_id` is permitted but not invokable, and drop any
+        assignment relying on it so the role re-resolves onto something else."""
+        with self._lock:
+            self._unusable.add(family_key(model_id))
+            for role, assignment in list(self._assigned.items()):
+                if family_key(assignment.model_id) == family_key(model_id):
+                    del self._assigned[role]
+
+    @property
+    def unusable(self) -> list[str]:
+        with self._lock:
+            return sorted(self._unusable)
 
     def assignments(self) -> dict[str, dict]:
         """Provenance for the blackboard: role → how it was served."""
@@ -332,6 +363,14 @@ class ModelResolver:
         if self._allowed is None:
             # Nothing discovered yet — ask for the role's first choice and
             # let a 403 teach us the rest.
+            if family_key(role.optimistic) in self._unusable:
+                raise ModelNotAvailable(
+                    f"{role.optimistic} is the first choice for the "
+                    f"{role.name!r} role but the backend cannot invoke it, and "
+                    f"no allow-list has been reported to choose an alternative "
+                    f"from. Set VP_MODEL_{role.name.upper()} to a model the "
+                    f"backend can reach."
+                )
             return Assignment(
                 role=role.name,
                 model_id=role.optimistic,
@@ -370,7 +409,8 @@ class ModelResolver:
         """Highest-ranked permitted model inside the role's band."""
         assert self._allowed is not None
         ranked = sorted(
-            ((m, rank(m)) for m in self._allowed),
+            ((m, rank(m)) for m in self._allowed
+             if family_key(m) not in self._unusable),
             key=lambda pair: pair[1] or -1,
             reverse=True,
         )
@@ -387,9 +427,14 @@ class ModelResolver:
 
         note = ""
         if family_key(model_id) != family_key(role.optimistic):
+            # Say which of the two reasons applies — "not on the allow-list" is
+            # actively misleading for a model that is listed but not invokable.
+            if family_key(role.optimistic) in self._unusable:
+                why = f"{role.optimistic} is permitted but not invokable"
+            else:
+                why = f"{role.optimistic} is not on the allow-list"
             note = (
-                f"{role.name!r} → {role.optimistic} is not on the allow-list; "
-                f"using {describe(model_id)} instead. "
+                f"{role.name!r} → {why}; using {describe(model_id)} instead. "
                 f"Pin with VP_MODEL_{role.name.upper()} to skip this probe."
             )
         return Assignment(
@@ -406,11 +451,17 @@ class ModelResolver:
         best_note = (
             f"Best permitted is {describe(best[0])}." if best else "Nothing is permitted."
         )
+        unusable_note = (
+            f"  Permitted but not invokable by the backend "
+            f"(IAM on the governor role): {', '.join(sorted(self._unusable))}\n"
+            if self._unusable else ""
+        )
         return (
-            f"No permitted model meets the floor for the {role.name!r} role "
+            f"No usable model meets the floor for the {role.name!r} role "
             f"({describe(role.floor)}). {best_note}\n"
             f"  Why this role has a floor: {role.rationale}\n"
             f"  Allowed: {', '.join(self._allowed or []) or '(none reported)'}\n"
+            f"{unusable_note}"
             f"  Fix: ask the platform team to add a model at or above the floor "
             f"to the governor's SSM allow-list, or override deliberately with "
             f"VP_MODEL_{role.name.upper()}=<allowed-model-id> to accept the "
@@ -455,9 +506,11 @@ def render_manifest(resolver: ModelResolver, assignments: dict[str, Assignment])
     lines = ["--- LLM preflight ---"]
     allowed = resolver.allowed
     if allowed:
+        unusable = {family_key(m) for m in resolver.unusable}
         lines.append(f"  allow-list ({len(allowed)} models):")
         for model_id in sorted(allowed, key=lambda m: rank(m) or -1, reverse=True):
-            lines.append(f"    {describe(model_id)}")
+            flag = "  [not invokable — IAM]" if family_key(model_id) in unusable else ""
+            lines.append(f"    {describe(model_id)}{flag}")
     else:
         lines.append("  allow-list: not reported (backend may not gate models)")
 
