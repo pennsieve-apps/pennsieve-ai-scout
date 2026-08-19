@@ -16,6 +16,7 @@ re-resolved, and the call is retried once.
 """
 from __future__ import annotations
 
+import os
 import re
 import time
 from datetime import datetime
@@ -70,6 +71,13 @@ def supports_sampling(model_id: str) -> bool:
     return not any(tag in _family(model_id) for tag in _NO_SAMPLING)
 
 
+# The governor transport ignores httpx timeouts — it dispatches through boto3,
+# whose read timeout is 60s with no Config override. A failing call therefore
+# costs 60s x botocore retries x this, so keep the SDK's own retry budget low
+# or a doomed request burns 15 minutes before surfacing.
+SDK_MAX_RETRIES = int(os.environ.get("VP_LLM_MAX_RETRIES", "1"))
+
+
 class LLMClient:
     """Thin facade around the `anthropic.Anthropic` client returned by the
     governor SDK. Agents call `messages_create` with a pipeline role name;
@@ -103,6 +111,28 @@ class LLMClient:
         assignments = self._resolver.resolve_all()
         print(render_manifest(self._resolver, assignments), flush=True)
         return self._resolver.assignments()
+
+    def _send(self, kwargs: dict):
+        """Issue the request, streaming when the client supports it.
+
+        Streaming is not an optimization here, it is load-bearing. The
+        governor's lambda-invoke transport hands httpx a lazily-consumed byte
+        stream only for `text/event-stream` responses; for a non-streaming one
+        it drains the entire Lambda EventStream inside `handle_request` before
+        returning. Botocore's read timeout is 60s, and a large completion takes
+        far longer than that to generate, so a non-streaming call on a big
+        prompt reliably dies with ReadTimeoutError. Streaming keeps bytes
+        moving so no single read comes close to the limit.
+        """
+        client = self._gov.client()
+        if hasattr(client, "with_options"):
+            client = client.with_options(max_retries=SDK_MAX_RETRIES)
+        stream = getattr(client.messages, "stream", None)
+        if stream is None:
+            # MockClient (offline / tests) has no streaming surface.
+            return client.messages.create(**kwargs)
+        with stream(**kwargs) as s:
+            return s.get_final_message()
 
     def _probe(self, model_id: str) -> None:
         """Minimal request used to trip the governor's allow-list rejection."""
@@ -183,7 +213,7 @@ class LLMClient:
 
             t0 = time.monotonic()
             try:
-                resp = self._gov.client().messages.create(**kwargs)
+                resp = self._send(kwargs)
             except anthropic.PermissionDeniedError as exc:
                 allowed = parse_allowed_models(exc) if is_model_not_allowed(exc) else None
                 if allowed is None or attempt == 2:
