@@ -203,6 +203,19 @@ def pinned_model(role: str) -> str | None:
 # ------------------------------------------------------------- allow-list
 
 
+def degraded_ok() -> bool:
+    """True when the run should continue past a failed reasoning stage.
+
+    Off by default: a co-scientist run that silently drops reasoning steps
+    produces output nobody should trust, which is the whole point of the role
+    floors. Set `VP_DEGRADED_OK=1` when scout's own output quality is not what
+    is under test — tracing the downstream stages, for instance — and every
+    skipped stage is recorded on the blackboard rather than passed off as a
+    complete run.
+    """
+    return os.environ.get("VP_DEGRADED_OK", "").strip().lower() in ("1", "true", "yes")
+
+
 def parse_allowed_models(exc: Exception) -> list[str] | None:
     """Pull `allowedModels` out of a governor `model_not_allowed` 403.
 
@@ -324,6 +337,11 @@ class ModelResolver:
     def unusable(self) -> list[str]:
         with self._lock:
             return sorted(self._unusable)
+
+    def resolved_assignments(self) -> dict[str, "Assignment"]:
+        """Assignment objects for whatever has resolved so far."""
+        with self._lock:
+            return dict(self._assigned)
 
     def assignments(self) -> dict[str, dict]:
         """Provenance for the blackboard: role → how it was served."""

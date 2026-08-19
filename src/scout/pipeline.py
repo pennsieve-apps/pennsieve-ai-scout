@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from scout.agents import dataset_compatibility, dataset_framer, lit_scout, verifier
 from scout.blackboard import Blackboard, DatasetSummary
+from scout.models import degraded_ok
 from scout.tools import (
     crossref,
     dandi_discover,
@@ -43,6 +44,27 @@ _GENERIC_TAG_STOPWORDS = {
     "rat", "rats", "data", "dataset", "modeling", "imaging",
     "electrophysiology", "open", "oad",
 }
+
+
+def _stage(bb: Blackboard, name: str, fn, *args, required: bool = True, **kwargs) -> bool:
+    """Run one LLM-dependent stage. Returns True if it completed.
+
+    A `required` stage failing is fatal unless `VP_DEGRADED_OK` is set, in
+    which case it's recorded on `bb.degraded` and the run continues. Optional
+    stages never abort the run but are still recorded, so a partial blackboard
+    always says which parts are missing instead of looking complete.
+    """
+    try:
+        fn(*args, **kwargs)
+        return True
+    except Exception as e:
+        if required and not degraded_ok():
+            raise
+        detail = f"{type(e).__name__}: {e}"
+        bb.degraded.append({"stage": name, "error": detail[:500]})
+        bb.log(name, "degraded", detail[:300])
+        print(f"  [degraded] {name} failed and was skipped: {detail[:200]}", flush=True)
+        return False
 
 
 def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
@@ -174,15 +196,15 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
     # --- Stage 0c2: Dataset Compatibility ---
     if len(bb.dataset_summaries) >= 2:
         print("\n--- dataset_compatibility ---")
-        try:
-            dataset_compatibility.run(bb, client)
-        except Exception as e:
-            bb.log("pipeline", "compatibility_warn",
-                   f"compatibility check skipped: {e!r}")
+        # Optional: cross-dataset verdicts are useful but nothing downstream
+        # requires them, so this has never aborted the run.
+        _stage(bb, "dataset_compatibility", dataset_compatibility.run,
+               bb, client, required=False)
 
     # --- Stage 0d: Dataset Framer ---
     print("\n--- dataset_framer ---")
-    dataset_framer.run(
+    _stage(
+        bb, "dataset_framer", dataset_framer.run,
         bb, client,
         seed_dataset_id=seed_dataset_id,
         linked_papers=linked_papers,
@@ -198,11 +220,11 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
 
     # --- Stage 1: Lit Scout ---
     print("\n--- lit_scout ---")
-    lit_scout.run(bb, client)
+    _stage(bb, "lit_scout", lit_scout.run, bb, client)
 
     # --- Stage 1b: Verifier ---
     print("\n--- verifier ---")
-    verifier.run(bb, client)
+    _stage(bb, "verifier", verifier.run, bb, client)
     _enrich_dois(bb)
 
     # --- Stage 1c: Deep evidence retrieval from RAG layer ---

@@ -101,7 +101,7 @@ class LLMClient:
 
     # -- preflight ------------------------------------------------------
 
-    def preflight(self) -> dict:
+    def preflight(self, strict: bool = True) -> dict:
         """Discover the allow-list, assign every role, print the manifest.
 
         Returns role → assignment provenance, suitable for recording on the
@@ -114,13 +114,31 @@ class LLMClient:
         if allowed:
             self._resolver.learn(allowed)
         select_interactively(self._resolver)
-        self._resolver.resolve_all()
-        self._verify_usable()
-        assignments = self._resolver.resolve_all()
+        self._assign_roles(strict)
+        self._verify_usable(strict)
+        # Re-assign: verification may have dropped a model as unusable.
+        assignments = self._assign_roles(strict)
         print(render_manifest(self._resolver, assignments), flush=True)
         return self._resolver.assignments()
 
-    def _verify_usable(self, max_swaps: int = 6) -> None:
+    def _assign_roles(self, strict: bool) -> dict:
+        """Resolve every role. In strict mode the first role that cannot be
+        served aborts; otherwise it's reported and left unassigned, so the
+        stages using it fail individually and get skipped."""
+        for role in ROLES:
+            try:
+                self._resolver.resolve(role)
+            except ModelNotAvailable as exc:
+                if strict:
+                    raise
+                print(
+                    f"  [llm] ! no usable model for the {role!r} role; stages "
+                    f"using it will fail and be skipped.\n{exc}",
+                    flush=True,
+                )
+        return self._resolver.resolved_assignments()
+
+    def _verify_usable(self, strict: bool = True, max_swaps: int = 6) -> None:
         """Confirm each assigned model can actually be invoked.
 
         The allow-list says what the governor permits, not what its IAM role
@@ -136,7 +154,12 @@ class LLMClient:
         swaps = 0
         for role in ROLES:
             while True:
-                model_id = self._resolver.resolve(role)
+                try:
+                    model_id = self._resolver.resolve(role)
+                except ModelNotAvailable:
+                    if strict:
+                        raise
+                    break  # already reported by _assign_roles
                 try:
                     self._probe(model_id)
                 except anthropic.PermissionDeniedError as exc:
