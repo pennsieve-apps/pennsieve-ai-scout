@@ -264,6 +264,21 @@ def is_access_denied(exc: Exception) -> bool:
     return "access_denied" in str(exc)
 
 
+def is_model_unavailable_upstream(exc: Exception) -> bool:
+    """True for a governor 500 whose cause is Bedrock refusing the model ID.
+
+    Shape seen in production: `{'error': 'bedrock_error', 'message':
+    'Bedrock error: ... ConverseStream, https response error StatusCode:
+    404 ...'}` — Bedrock's way of saying this model doesn't exist for this
+    operation on this account. Deterministic, so retrying is pointless; the
+    model should be dropped like an access_denied one. A generic 500 without
+    the 404 marker stays transient and is NOT matched.
+    """
+    body = getattr(exc, "body", None)
+    text = str(body) if isinstance(body, dict) else str(exc)
+    return "bedrock_error" in text and "StatusCode: 404" in text
+
+
 class ModelNotAvailable(RuntimeError):
     """No permitted model clears a role's floor — raised at preflight."""
 
@@ -305,9 +320,9 @@ class ModelResolver:
         self._allowed: list[str] | None = list(allowed) if allowed else None
         self._assigned: dict[str, Assignment] = {}
         self._announced: set[str] = set()
-        # Family keys of models the backend permits but cannot actually
-        # invoke. Learned from access_denied, never from the allow-list.
-        self._unusable: set[str] = set()
+        # Family key → why, for models the backend permits but cannot
+        # actually serve. Learned from errors, never from the allow-list.
+        self._unusable: dict[str, str] = {}
 
     # -- state ----------------------------------------------------------
 
@@ -324,19 +339,20 @@ class ModelResolver:
                 if family_key(assignment.model_id) not in permitted:
                     del self._assigned[role]
 
-    def mark_unusable(self, model_id: str) -> None:
-        """Record that `model_id` is permitted but not invokable, and drop any
+    def mark_unusable(self, model_id: str, reason: str = "IAM") -> None:
+        """Record that `model_id` is permitted but not servable, and drop any
         assignment relying on it so the role re-resolves onto something else."""
         with self._lock:
-            self._unusable.add(family_key(model_id))
+            self._unusable[family_key(model_id)] = reason
             for role, assignment in list(self._assigned.items()):
                 if family_key(assignment.model_id) == family_key(model_id):
                     del self._assigned[role]
 
     @property
-    def unusable(self) -> list[str]:
+    def unusable(self) -> dict[str, str]:
+        """Family key → reason, for every model marked unusable."""
         with self._lock:
-            return sorted(self._unusable)
+            return dict(self._unusable)
 
     def resolved_assignments(self) -> dict[str, "Assignment"]:
         """Assignment objects for whatever has resolved so far."""
@@ -524,10 +540,11 @@ def render_manifest(resolver: ModelResolver, assignments: dict[str, Assignment])
     lines = ["--- LLM preflight ---"]
     allowed = resolver.allowed
     if allowed:
-        unusable = {family_key(m) for m in resolver.unusable}
+        unusable = resolver.unusable
         lines.append(f"  allow-list ({len(allowed)} models):")
         for model_id in sorted(allowed, key=lambda m: rank(m) or -1, reverse=True):
-            flag = "  [not invokable — IAM]" if family_key(model_id) in unusable else ""
+            reason = unusable.get(family_key(model_id))
+            flag = f"  [not servable — {reason}]" if reason else ""
             lines.append(f"    {describe(model_id)}{flag}")
     else:
         lines.append("  allow-list: not reported (backend may not gate models)")
