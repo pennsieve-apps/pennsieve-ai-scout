@@ -134,12 +134,14 @@ def fetch_manifest(uri: str) -> dict | None:
 
 
 def fetch_metadata_records(uri: str, max_rows_per_csv: int = 50,
-                           max_files: int = 10) -> dict[str, dict]:
+                           max_files: int = 10, *, keys: list[str] | None = None,
+                           getter=None) -> dict[str, dict]:
     """Read metadata/records/*.{csv,tsv} as previews.
 
     Returns {filename: {columns: [...], n_rows: int, head: [{col: val, ...}]}}.
     Parquet files are noted but not parsed (would need pyarrow)."""
-    keys = list_prefix(uri, "metadata/records")
+    if keys is None:
+        keys = list_prefix(uri, "metadata/records")
     out: dict[str, dict] = {}
     for k in keys:
         filename = k.rsplit("/", 1)[-1]
@@ -148,7 +150,7 @@ def fetch_metadata_records(uri: str, max_rows_per_csv: int = 50,
             continue
         if not filename.lower().endswith((".csv", ".tsv")):
             continue
-        body = get_object(uri, k)
+        body = getter(k) if getter else get_object(uri, k)
         if not body:
             continue
         text = body.decode("utf-8", errors="replace")
@@ -339,20 +341,63 @@ def _render_file_tree_legacy(manifest: dict | None,
     return "\n".join(lines)
 
 
-def inspect(uri: str) -> dict:
+def inspect(uri: str, detail: dict | None = None) -> dict:
     """One-shot inspection: README + file-type histogram + manifest tree +
     metadata-record previews + bucket URI/access info.
 
     Failures degrade gracefully — partial results are still useful."""
-    readme = fetch_readme(uri)
-    manifest = fetch_manifest(uri)
+    from scout.tools import pennsieve_discover
+
+    diagnostics: list[dict] = []
+
+    def public_file(path):
+        try:
+            return pennsieve_discover.download_file(detail, path)
+        except (httpx.HTTPError, ValueError, KeyError) as exc:
+            # Exception text can contain a presigned URL. Record only type/status.
+            response = getattr(exc, "response", None)
+            diagnostics.append({"resource": path, "error": type(exc).__name__,
+                                "status": getattr(response, "status_code", None)})
+            return None
+
+    readme = None
+    if detail and detail.get("readme"):
+        try:
+            response = httpx.get(detail["readme"], timeout=30, follow_redirects=True)
+            response.raise_for_status()
+            readme = response.text
+        except httpx.HTTPError as exc:
+            diagnostics.append({"resource": "readme", "error": type(exc).__name__})
+    if not readme:
+        readme = fetch_readme(uri)
+    manifest = None
+    if detail:
+        body = public_file("manifest.json")
+        if body:
+            try:
+                manifest = json.loads(body)
+                if not isinstance(manifest, dict) or not isinstance(manifest.get("files"), list):
+                    manifest = None
+            except (ValueError, UnicodeDecodeError):
+                diagnostics.append({"resource": "manifest.json", "error": "invalid_json"})
+    if manifest is None:
+        manifest = fetch_manifest(uri)
+    if manifest is None:
+        diagnostics.append({"resource": "manifest.json", "error": "unavailable",
+                            "action": "Check Discover download access and S3 Requester Pays permissions"})
+    keys = ([f["path"] for f in manifest.get("files", [])
+             if f.get("path", "").startswith("metadata/records/")]
+            if manifest is not None else None)
     bucket, _ = parse_uri(uri)
     return {
         "readme": readme or "",
         "file_types": file_type_summary(manifest),
         "file_tree": render_file_tree(manifest),
-        "records": fetch_metadata_records(uri),
+        "records": fetch_metadata_records(uri, keys=keys, getter=public_file if detail else None),
         "bucket_uri": uri,
         "bucket": bucket,
         "access": "oad" if is_oad_bucket(bucket) else "requester_pays",
+        "manifest_available": manifest is not None,
+        "manifest_file_count": len((manifest or {}).get("files", [])),
+        "diagnostics": diagnostics,
     }

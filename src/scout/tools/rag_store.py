@@ -12,6 +12,7 @@ Cross-run persistent: subsequent runs see prior corpus, only embed new content.
 from __future__ import annotations
 
 import hashlib
+import gzip
 import json
 import re
 from dataclasses import dataclass, field
@@ -55,6 +56,10 @@ def _tokenize_for_bm25(text: str) -> list[str]:
 @dataclass
 class RAGStore:
     root: Path
+    read_only: bool = False
+    dataset_doi: str = ""
+    _artifact_manifest: dict = field(default_factory=dict, init=False)
+    _artifact_text: dict = field(default_factory=dict, init=False)
     _embedder: Embedder | None = field(default=None, init=False)
     _reranker: Reranker | None = field(default=None, init=False)
     _index: list[dict] = field(default_factory=list, init=False)
@@ -64,15 +69,64 @@ class RAGStore:
 
     def __post_init__(self) -> None:
         self.root = Path(self.root)
-        for sub in ("papers", "chunks", "embeddings"):
-            (self.root / sub).mkdir(parents=True, exist_ok=True)
+        if (self.root / "chunks.jsonl.gz").is_file():
+            self._load_artifact()
+            return
+        if self.read_only:
+            if not self._index_path().is_file() or not self._vectors_path().is_file():
+                raise ValueError("Incompatible RAG layer: expected embeddings/index.jsonl + vectors.npy, "
+                                 "or a dataset artifact directory with manifest.json + chunks.jsonl.gz")
+        else:
+            for sub in ("papers", "chunks", "embeddings"):
+                (self.root / sub).mkdir(parents=True, exist_ok=True)
         self._load_index()
 
     @property
     def embedder(self) -> Embedder:
         if self._embedder is None:
-            self._embedder = Embedder()
+            self._embedder = (Embedder(model_id=self._artifact_manifest["embedding_model_id"],
+                                      dimensions=self._artifact_manifest["dim"])
+                              if self._artifact_manifest else Embedder())
         return self._embedder
+
+    def _load_artifact(self) -> None:
+        """Read one dataset/version/model partition produced by pennsieve-ai-rag.
+
+        Metadata rows stay out of literature evidence. Dataset scope is checked
+        before bypassing legacy topic tags (the artifact has no topic tags).
+        """
+        manifest = json.loads((self.root / "manifest.json").read_text())
+        if not self.dataset_doi or manifest.get("dataset_doi", "").lower() != self.dataset_doi.lower():
+            raise ValueError("RAG artifact dataset DOI must match the seed dataset DOI")
+        model = manifest.get("embedding_model_id")
+        if model not in {"amazon.titan-embed-text-v2:0", "cohere.embed-english-v3", "cohere.embed-multilingual-v3"}:
+            raise ValueError(f"RAG artifact uses unsupported query embedding model: {model}")
+        dim = manifest.get("dim")
+        if dim not in {256, 512, 1024} or (model.startswith("cohere") and dim != 1024):
+            raise ValueError(f"RAG artifact embedding dimension is unsupported: {dim}")
+        self._artifact_manifest = manifest
+        vectors = []
+        count = 0
+        with gzip.open(self.root / "chunks.jsonl.gz", "rt") as stream:
+            for line in stream:
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                count += 1
+                vector = row.get("embedding", [])
+                if len(vector) != dim or not np.isfinite(vector).all():
+                    raise ValueError("RAG artifact contains invalid embedding vectors")
+                if not row.get("paper_doi") or row.get("source_type", "paper") not in {"", "paper"}:
+                    continue
+                if not row.get("text") or row["chunk_id"] in self._artifact_text:
+                    raise ValueError("RAG paper chunks require text and unique IDs")
+                self._index.append({"chunk_id": row["chunk_id"], "doi": row["paper_doi"],
+                                    "section": row.get("section", "")})
+                self._artifact_text[row["chunk_id"]] = row["text"]
+                vectors.append(vector)
+        if count != manifest.get("chunk_count"):
+            raise ValueError("RAG artifact chunk count differs from manifest")
+        self._vectors = np.array(vectors, dtype=np.float32).reshape((-1, dim))
 
     @property
     def reranker(self) -> Reranker:
@@ -251,12 +305,14 @@ class RAGStore:
         if not self._index or self._vectors is None or len(self._index) == 0:
             return []
         qv = np.array(self.embedder.embed_query(query), dtype=np.float32)
+        if self._vectors.shape[1] != qv.shape[0]:
+            raise ValueError("RAG query and corpus embedding dimensions differ")
         norms = np.linalg.norm(self._vectors, axis=1) * np.linalg.norm(qv) + 1e-12
         sims = (self._vectors @ qv) / norms
 
         # Apply topical mask before ranking — saves work on filtered chunks.
         mask: np.ndarray | None = None
-        if topics_filter:
+        if topics_filter and not self._artifact_manifest:
             tf = {t.strip().lower() for t in topics_filter if t and t.strip()}
             mask = np.array([
                 bool(set(self._index[i].get("topics") or []) & tf)
@@ -335,6 +391,8 @@ class RAGStore:
         return out
 
     def _load_chunk_text(self, doi: str, chunk_id: str) -> str:
+        if self._artifact_manifest:
+            return self._artifact_text.get(chunk_id, "")
         sanitized = _sanitize(doi)
         path = self.root / "chunks" / f"{sanitized}.jsonl"
         if not path.exists():
@@ -370,6 +428,8 @@ class RAGStore:
             sec = r.get("section", "")
             sections[sec] = sections.get(sec, 0) + 1
         return {
+            "format": "dataset_artifact" if self._artifact_manifest else "legacy_numpy",
+            "dataset_doi": self._artifact_manifest.get("dataset_doi", ""),
             "papers": len(papers),
             "chunks": len(self._index),
             "model_id": self.embedder.model_id if self._embedder else None,

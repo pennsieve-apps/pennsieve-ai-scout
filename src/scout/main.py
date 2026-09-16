@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import sys
 from pathlib import Path
 
@@ -20,7 +21,12 @@ from scout.tools import pennsieve_discover
 MAX_ITERATIONS = 3  # not used by Scout itself; carried on the blackboard for downstream stages
 
 
+def _terminate(signum, frame):
+    raise KeyboardInterrupt("termination requested")
+
+
 def main() -> int:
+    signal.signal(signal.SIGTERM, _terminate)
     seed_doi = os.environ.get("SEED_DOI", "").strip()
     if not seed_doi:
         print("ERROR: SEED_DOI environment variable is required.", file=sys.stderr)
@@ -70,6 +76,7 @@ def main() -> int:
            f"seed_doi={seed_doi}, seed_dataset={seed_dataset_id}, "
            f"workflow_instance={workflow_instance_id}")
 
+    bb.save(output_dir / "blackboard.json")
     client = LLMClient()
 
     # --- LLM preflight: learn the allow-list, assign roles, fail loud ---
@@ -89,7 +96,7 @@ def main() -> int:
     # --- Run the scout pipeline ---
     try:
         run_scout(bb, client, seed_dataset_id=seed_dataset_id)
-    except Exception as e:
+    except (Exception, KeyboardInterrupt) as e:
         bb.log("scout", "fatal", repr(e))
         _write_outputs(bb, client, output_dir)
         raise
