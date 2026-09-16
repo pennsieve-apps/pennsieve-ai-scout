@@ -89,12 +89,13 @@ interactive terminal to choose per role from the allow-list at startup.
 
 ## Status
 
-**v0.4.0 release candidate — locally validated; Pennsieve Test rerun pending.**
+**v0.4.1 release candidate — locally validated; Pennsieve Test rerun pending.**
 Earlier code has run end-to-end in Pennsieve Test. This candidate adds public
 Discover asset inspection, explicit access diagnostics, strict seed-data and
 optional full-text gates, and broader RAG artifact compatibility. Model
 assignments are discovered and printed at runtime because the Test allow-list
-can change between releases.
+can change between releases. v0.4.1 also requires the Anthropic 1.x-compatible
+Governor transport from `pennsieve-llm` 0.6.1.
 
 ### Known caveats to verify during the Test rerun
 
