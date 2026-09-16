@@ -1,7 +1,5 @@
 # pennsieve-ai-scout
 
-Local hardening update: seed inspection now uses Discover public assets/downloads, records access diagnostics, and stops strict runs with no inspectable seed files. RAG readers accept dataset-scoped compressed artifacts; set `VP_REQUIRE_DEEP_EVIDENCE=1` to require full text. Docker deployment is still pending.
-
 Pennsieve compute node processor — **stage 1 of 4** of the `pennsieve-ai`
 research pipeline.
 
@@ -18,7 +16,11 @@ blackboard for the downstream stages: `pennsieve-ai-hypothesize`,
 | `OUTPUT_DIR` | platform-injected | Where to write `blackboard.json` and artifacts |
 | `EXECUTION_RUN_ID` | platform-injected | Governor budget attribution key |
 | `WORKFLOW_INSTANCE_ID` | platform-injected | Workflow execution identifier |
-| `LLM_GOVERNOR_FUNCTION` | platform-injected | Lambda name for the LLM governor |
+| `LLM_GOVERNOR_FUNCTION_NAME` | platform-injected | Lambda name for the LLM governor |
+| `DISCOVER_API_HOST` | `https://api.pennsieve.io/discover` | Pennsieve Discover API base URL |
+| `VP_RAG_PATH` | `/mnt/layers/pennsieve-ai-rag` | Optional persistent RAG layer mount |
+| `VP_REQUIRE_DEEP_EVIDENCE` | `0` | Set to `1` to fail unless compatible full-text evidence is available |
+| `VP_DEGRADED_OK` | `0` | Diagnostic override that permits required Scout stages to be skipped after failure |
 
 No `INPUT_DIR` consumption — Scout is the first stage.
 
@@ -31,7 +33,7 @@ Writes `$OUTPUT_DIR/blackboard.json` with:
 - Linked + citing + reference papers (Europe PMC + CrossRef)
 - Dataset compatibility verdicts across the candidate datasets
 - Literature claims (verified against papers seen)
-- Deep evidence chunks (retrieved from the persistent RAG layer, if mounted)
+- Deep evidence chunks and retrieval diagnostics (from the persistent RAG layer, if mounted)
 - Dataset framer brief (research focus, suggested queries)
 
 Downstream stages consume this via the standard Pennsieve `INPUT_DIR`/`OUTPUT_DIR` contract.
@@ -42,12 +44,15 @@ Downstream stages consume this via the standard Pennsieve `INPUT_DIR`/`OUTPUT_DI
 |---|---|---|
 | `pennsieve-ai-rag` | `/mnt/layers/pennsieve-ai-rag/` (read-only) | `pennsieve-ai-rag-loader` workflow |
 
-If the layer is absent, `bb.deep_evidence` is empty and downstream stages degrade gracefully (no full-text retrieval, only titles/abstracts).
+The reader accepts dataset-scoped compressed artifacts as well as the original
+layout. If the layer is absent or incompatible, Scout records the retrieval
+diagnostics and continues with titles and abstracts unless
+`VP_REQUIRE_DEEP_EVIDENCE=1` is set.
 
 ## LLM access
 
 All LLM calls route through the Pennsieve LLM Governor Lambda
-(`$LLM_GOVERNOR_FUNCTION`) — see `src/scout/llm.py`.
+(`$LLM_GOVERNOR_FUNCTION_NAME`) — see `src/scout/llm.py`.
 
 Models are addressed by the **role they play in the pipeline**, never by
 vendor family — see `src/scout/models.py`:
@@ -84,12 +89,14 @@ interactive terminal to choose per role from the allow-list at startup.
 
 ## Status
 
-**v1 — wired end-to-end, untested in Pennsieve compute.** Agents, tools, and
-prompts vendored from the original `virtual-postdoc` research codebase.
-Import graph fully resolves; pipeline runs locally given env vars + an
-operational governor Lambda. Not yet deployed to a Pennsieve compute node.
+**v0.4.0 release candidate — locally validated; Pennsieve Test rerun pending.**
+Earlier code has run end-to-end in Pennsieve Test. This candidate adds public
+Discover asset inspection, explicit access diagnostics, strict seed-data and
+optional full-text gates, and broader RAG artifact compatibility. Model
+assignments are discovered and printed at runtime because the Test allow-list
+can change between releases.
 
-### Known caveats to verify before first deploy
+### Known caveats to verify during the Test rerun
 
 - **Embeddings + reranker call Bedrock directly** (`tools/embeddings.py`,
   `tools/reranker.py` — both `boto3.client("bedrock-runtime")`). They bypass
