@@ -1,5 +1,7 @@
 # pennsieve-ai-scout
 
+Local hardening update: seed inspection now uses Discover public assets/downloads, records access diagnostics, and stops strict runs with no inspectable seed files. RAG readers accept dataset-scoped compressed artifacts; set `VP_REQUIRE_DEEP_EVIDENCE=1` to require full text. Docker deployment is still pending.
+
 Pennsieve compute node processor — **stage 1 of 4** of the `pennsieve-ai`
 research pipeline.
 

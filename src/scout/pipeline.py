@@ -8,6 +8,8 @@ The output is a populated Blackboard, written to `$OUTPUT_DIR/blackboard.json`.
 """
 from __future__ import annotations
 
+import os
+
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -35,7 +37,7 @@ if TYPE_CHECKING:
 # Constants mirror the monorepo's orchestrator defaults
 DEEP_EVIDENCE_K = 15
 DEEP_EVIDENCE_POOL = 60
-LAYER_RAG_PATH = Path("/mnt/layers/pennsieve-ai-rag")
+LAYER_RAG_PATH = Path(os.environ.get("VP_RAG_PATH", "/mnt/layers/pennsieve-ai-rag"))
 
 # Generic tags that should never anchor topical retrieval — they're modality
 # markers, not specific topics. (Copied from orchestrator._GENERIC_TAG_STOPWORDS.)
@@ -73,6 +75,12 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
     discovery and framing, populates dataset_summaries / papers_seen /
     literature_claims / deep_evidence / director_brief."""
 
+    require_deep = os.environ.get("VP_REQUIRE_DEEP_EVIDENCE", "0") == "1"
+    if require_deep and not ((LAYER_RAG_PATH / "embeddings/index.jsonl").is_file()
+                             or (LAYER_RAG_PATH / "chunks.jsonl.gz").is_file()):
+        raise RuntimeError("VP_REQUIRE_DEEP_EVIDENCE=1 requires a compatible populated RAG layer "
+                           f"at {LAYER_RAG_PATH}; expected a legacy index or manifest.json + chunks.jsonl.gz")
+    bb.deep_read_stats = {"status": "abstracts_only", "layer": str(LAYER_RAG_PATH)}
     # --- Stage 0: deep dataset inspection ---
     print("--- inspecting seed dataset ---")
     detail, inspection = _fetch_seed(seed_dataset_id)
@@ -84,6 +92,16 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
           f"file types: {len(seed_summary.file_types)} · "
           f"record tables: {len(seed_summary.record_tables)} · "
           f"linked pubs: {len(seed_summary.external_publications)}")
+    bb.dataset_summaries.append(seed_summary)
+    bb.log("seed_inspection", "diagnostics", str(inspection.get("diagnostics", [])))
+    if not seed_summary.file_types and not seed_summary.record_tables:
+        message = (f"{seed_dataset_id}: no inspectable files or record tables. "
+                   "Check Discover metadata/download access and legacy S3 Requester Pays "
+                   "permissions before generating hypotheses.")
+        bb.log("seed_inspection", "blocked", message)
+        if not degraded_ok():
+            raise RuntimeError(message)
+        bb.degraded.append({"stage": "seed_inspection", "error": message})
 
     # Topic extraction (LLM): drives the retrieval topical filter
     try:
@@ -113,7 +131,6 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
     if seed_summary.extracted_topics:
         bb.log("pipeline", "seed_topics",
                f"using for filter: {','.join(seed_summary.extracted_topics)}")
-    bb.dataset_summaries.append(seed_summary)
 
     # --- Stage 0b: similar datasets (cross-repo) ---
     print("\n--- finding similar datasets (cross-repo) ---")
@@ -132,7 +149,7 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
             if sim_repo == "pennsieve":
                 sim_detail = pennsieve_discover.fetch_detail(sim_id)
                 if sim_detail and sim_detail.get("uri"):
-                    sim_inspection = pennsieve_inspect.inspect(sim_detail["uri"])
+                    sim_inspection = pennsieve_inspect.inspect(sim_detail["uri"], sim_detail)
                     summary.external_publications = list(
                         sim_detail.get("externalPublications") or []
                     )
@@ -236,7 +253,8 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
         print(f"\n--- deep evidence retrieval from {LAYER_RAG_PATH} ---")
         try:
             from scout.tools.rag_store import RAGStore
-            store = RAGStore(LAYER_RAG_PATH)
+            store = RAGStore(LAYER_RAG_PATH, read_only=True, dataset_doi=next(
+                (d.doi for d in bb.dataset_summaries if d.id == bb.subsystem), ""))
             stats = store.stats()
             if stats.get("chunks", 0) > 0:
                 focus = " ".join((bb.director_brief.focus_areas if bb.director_brief else [])[:3])
@@ -250,7 +268,7 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
                      "text": c.text, "score": round(c.score, 4)}
                     for c in chunks
                 ]
-                bb.deep_read_stats = stats
+                bb.deep_read_stats = {**stats, "status": "retrieved" if chunks else "no_matching_chunks"}
                 bb.log("pipeline", "deep_evidence",
                        f"retrieved {len(bb.deep_evidence)} chunks from layer "
                        f"({stats.get('chunks', 0)} total)")
@@ -258,6 +276,7 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
                 bb.log("pipeline", "deep_evidence_empty",
                        "RAG layer is mounted but empty — run loader workflow to populate")
         except Exception as e:
+            bb.deep_read_stats = {"status": "retrieval_failed", "error": str(e)}
             bb.log("pipeline", "deep_evidence_error", f"{e!r}")
             print(f"  [deep_evidence] error: {e}")
     else:
@@ -265,6 +284,9 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
                f"layer {LAYER_RAG_PATH} not mounted — downstream stages get titles/abstracts only")
         print(f"  [deep_evidence] skipped: {LAYER_RAG_PATH} not mounted")
 
+    if require_deep and not bb.deep_evidence:
+        raise RuntimeError("Full-text evidence is required but retrieval returned no chunks; "
+                           "inspect deep_read_stats and RAG model/dimension/topic configuration")
     # Re-enrich DOIs once more after RAG retrievals
     _enrich_dois(bb)
     print(f"\nScout complete: {len(bb.dataset_summaries)} datasets, "
@@ -291,7 +313,7 @@ def _fetch_seed(seed_dataset_id: str) -> tuple[dict | None, dict]:
         if not detail:
             return None, {}
         uri = detail.get("uri") or ""
-        inspection = (pennsieve_inspect.inspect(uri) if uri
+        inspection = (pennsieve_inspect.inspect(uri, detail) if uri
                       else {"readme": "", "file_types": {}, "records": {}})
         return detail, inspection
     if repo == "dandi":

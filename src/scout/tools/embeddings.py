@@ -21,9 +21,10 @@ TITAN_PARALLELISM = int(os.environ.get("VP_TITAN_PARALLELISM", "16"))
 
 
 class Embedder:
-    def __init__(self, model_id: str = DEFAULT_MODEL, region: str = DEFAULT_REGION):
+    def __init__(self, model_id: str = DEFAULT_MODEL, region: str = DEFAULT_REGION, dimensions: int | None = None):
         self._client = boto3.client("bedrock-runtime", region_name=region)
         self.model_id = model_id
+        self.dimensions = dimensions
 
     def _is_cohere(self) -> bool:
         return "cohere" in self.model_id.lower()
@@ -31,7 +32,7 @@ class Embedder:
     def _embed_titan(self, text: str) -> list[float]:
         resp = self._client.invoke_model(
             modelId=self.model_id,
-            body=json.dumps({"inputText": text}),
+            body=json.dumps({"inputText": text, **({"dimensions": self.dimensions} if self.dimensions else {})}),
             contentType="application/json",
         )
         payload = json.loads(resp["body"].read())

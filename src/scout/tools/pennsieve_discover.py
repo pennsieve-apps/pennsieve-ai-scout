@@ -6,9 +6,29 @@ List:   GET /discover/datasets?limit=N
 """
 from __future__ import annotations
 
+import os
+
 import httpx
 
-BASE = "https://api.pennsieve.io/discover"
+BASE = os.environ.get("DISCOVER_API_HOST", "https://api.pennsieve.io/discover").rstrip("/")
+
+
+def download_file(detail: dict, path: str) -> bytes | None:
+    """Download a published file via Discover, including legacy buckets.
+
+    The returned signed URL is intentionally never logged or persisted.
+    """
+    response = httpx.post(
+        f"{BASE}/datasets/{detail['id']}/versions/{detail['version']}/files/download-manifest",
+        json={"paths": [path]}, timeout=30,
+    )
+    response.raise_for_status()
+    files = response.json().get("data") or []
+    if not files:
+        return None
+    response = httpx.get(files[0]["url"], timeout=60, follow_redirects=True)
+    response.raise_for_status()
+    return response.content
 
 
 def _normalize(raw: dict) -> dict:
