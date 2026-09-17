@@ -37,6 +37,9 @@ Writes `$OUTPUT_DIR/blackboard.json` with:
 - Dataset framer brief (research focus, suggested queries)
 
 Downstream stages consume this via the standard Pennsieve `INPUT_DIR`/`OUTPUT_DIR` contract.
+The serialized schema, migrations, and unknown-field preservation come from
+`pennsieve-ai-utils` (PyPI, pinned in `pyproject.toml`).
+Model provenance is stored cumulatively under the `scout` stage namespace.
 
 ## Layers consumed
 
@@ -52,10 +55,10 @@ diagnostics and continues with titles and abstracts unless
 ## LLM access
 
 All LLM calls route through the Pennsieve LLM Governor Lambda
-(`$LLM_GOVERNOR_FUNCTION_NAME`) — see `src/scout/llm.py`.
+(`$LLM_GOVERNOR_FUNCTION_NAME`) via the shared `pennsieve_ai_utils.llm.LLMClient`.
 
 Models are addressed by the **role they play in the pipeline**, never by
-vendor family — see `src/scout/models.py`:
+vendor family — see `pennsieve_ai_utils.models`:
 
 | Role | Used by | Floor | Ceiling |
 |---|---|---|---|
@@ -70,15 +73,16 @@ floor is what stops a full run from silently degrading onto a model whose
 output isn't worth the compute the later stages spend on it; the ceiling
 keeps high-volume roles off expensive models.
 
-**Preflight.** Bedrock has no Models API, so the governor's allow-list is
-discovered by deliberately tripping its `model_not_allowed` 403 with a
-sentinel model ID before any real work starts. The resulting manifest is
-printed at startup and recorded on the blackboard as `model_assignments`, so
-a downstream reader can tell whether a claim came from a reasoning-grade
-model or a degraded one. If no permitted model meets a role's floor, the run
-aborts at preflight (exit 5) with an actionable message instead of spending
-the full budget. Should a model still be rejected mid-run, the allow-list is
-re-learned from the 403 and the role re-resolved once.
+**Preflight.** The governor's allow-list is read from `GET /v1/models`
+(falling back to deliberately tripping a `model_not_allowed` 403 with a
+sentinel model ID on older governors) before any real work starts. The
+resulting manifest is printed at startup and recorded on the blackboard
+under `model_assignments.scout`, so a downstream reader can tell whether a
+claim came from a reasoning-grade model or a degraded one. If no permitted
+model meets a role's floor, the run aborts at preflight (exit 5) with an
+actionable message instead of spending the full budget. Should a model
+still be rejected mid-run, the allow-list is re-learned from the 403 and
+the role re-resolved.
 
 **Overrides.** `VP_MODEL_REASONING` / `VP_MODEL_SYNTHESIS` / `VP_MODEL_BULK`
 pin a role to a specific model ID, bypassing floor and ceiling — explicit

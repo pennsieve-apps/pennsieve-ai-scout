@@ -5,7 +5,7 @@ AND-all-terms semantics."""
 from __future__ import annotations
 
 from scout.agents.lit_scout import _broaden, _dedupe_queries, _fallback_queries
-from scout.blackboard import Blackboard, DatasetSummary
+from pennsieve_ai_utils.blackboard import Blackboard, DatasetSummary
 
 
 def test_dedupe_removes_the_doubled_director_queries():

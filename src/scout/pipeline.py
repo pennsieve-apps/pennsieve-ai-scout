@@ -15,10 +15,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from scout.agents import dataset_compatibility, dataset_framer, lit_scout, verifier
-from scout.blackboard import Blackboard, DatasetSummary
-from scout.models import degraded_ok
+from pennsieve_ai_utils.blackboard import Blackboard, DatasetSummary
+from pennsieve_ai_utils.models import degraded_ok
+from pennsieve_ai_utils.tools import crossref
 from scout.tools import (
-    crossref,
     dandi_discover,
     dandi_inspect,
     europe_pmc,
@@ -31,7 +31,7 @@ from scout.tools import (
 )
 
 if TYPE_CHECKING:
-    from scout.llm import LLMClient
+    from pennsieve_ai_utils.llm import LLMClient
 
 
 # Constants mirror the monorepo's orchestrator defaults
@@ -252,7 +252,7 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
     if LAYER_RAG_PATH.exists():
         print(f"\n--- deep evidence retrieval from {LAYER_RAG_PATH} ---")
         try:
-            from scout.tools.rag_store import RAGStore
+            from pennsieve_ai_utils.tools.rag_store import RAGStore
             store = RAGStore(LAYER_RAG_PATH, read_only=True, dataset_doi=next(
                 (d.doi for d in bb.dataset_summaries if d.id == bb.subsystem), ""))
             stats = store.stats()

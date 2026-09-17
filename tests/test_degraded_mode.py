@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from scout.blackboard import Blackboard
-from scout.models import degraded_ok
+from pennsieve_ai_utils.blackboard import Blackboard
+from pennsieve_ai_utils.models import degraded_ok
 from scout.pipeline import _stage
 
 

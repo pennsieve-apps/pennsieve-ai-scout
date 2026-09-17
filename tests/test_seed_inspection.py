@@ -5,7 +5,7 @@ import pytest
 
 from scout.tools import pennsieve_discover, pennsieve_inspect
 from scout import pipeline
-from scout.blackboard import Blackboard
+from pennsieve_ai_utils.blackboard import Blackboard
 
 
 def test_legacy_inspection_uses_public_assets_and_manifest(monkeypatch):

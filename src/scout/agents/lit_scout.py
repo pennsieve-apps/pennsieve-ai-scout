@@ -3,8 +3,8 @@ from __future__ import annotations
 import re
 
 from scout.agents._common import call_json, load_prompt
-from scout.blackboard import Blackboard, Claim
-from scout.llm import LLMClient
+from pennsieve_ai_utils.blackboard import Blackboard, Claim
+from pennsieve_ai_utils.llm import LLMClient
 from scout.tools import europe_pmc
 
 MODEL = "synthesis"
