@@ -298,9 +298,9 @@ class LLMClient:
                 "messages": send_messages,
                 "max_tokens": max_tokens,
             }
-            # Opus 4.7+ / Sonnet 5 removed sampling params — sending one 400s.
-            if supports_sampling(model_id):
-                kwargs["temperature"] = temperature
+            # anthropic 1.x removed temperature/top_p from the SDK entirely
+            # (Messages.create/.stream no longer accept them), so no sampling
+            # parameter is sent; requests use the model's default temperature.
 
             t0 = time.monotonic()
             try:
