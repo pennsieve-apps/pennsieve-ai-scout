@@ -11,8 +11,8 @@ changes — they read `bb.director_brief` exactly as before.
 from __future__ import annotations
 
 from scout.agents._common import call_json, format_datasets, load_prompt
-from scout.blackboard import Blackboard, DirectorBrief
-from scout.llm import LLMClient
+from pennsieve_ai_utils.blackboard import Blackboard, DirectorBrief
+from pennsieve_ai_utils.llm import LLMClient
 
 MODEL = "reasoning"
 AGENT = "dataset_framer"

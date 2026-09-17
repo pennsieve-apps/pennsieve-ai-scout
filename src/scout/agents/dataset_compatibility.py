@@ -19,8 +19,8 @@ One Sonnet call per run, ~$0.05.
 from __future__ import annotations
 
 from scout.agents._common import call_json, load_prompt
-from scout.blackboard import Blackboard, DatasetSummary
-from scout.llm import LLMClient
+from pennsieve_ai_utils.blackboard import Blackboard, DatasetSummary
+from pennsieve_ai_utils.llm import LLMClient
 
 MODEL = "synthesis"
 AGENT = "dataset_compatibility"

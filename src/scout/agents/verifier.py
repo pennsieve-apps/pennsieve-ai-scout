@@ -19,8 +19,8 @@ import re
 from difflib import SequenceMatcher
 
 from scout.agents._common import call_json, load_prompt
-from scout.blackboard import Blackboard, Claim
-from scout.llm import LLMClient
+from pennsieve_ai_utils.blackboard import Blackboard, Claim
+from pennsieve_ai_utils.llm import LLMClient
 
 MODEL = "synthesis"
 AGENT = "verifier"

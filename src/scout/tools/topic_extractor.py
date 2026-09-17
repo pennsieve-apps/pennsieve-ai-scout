@@ -17,7 +17,7 @@ Sonnet, ~$0.003 per paper. ~$0.40 to backfill the existing corpus.
 from __future__ import annotations
 
 from scout.agents._common import call_json, load_prompt
-from scout.llm import LLMClient
+from pennsieve_ai_utils.llm import LLMClient
 
 MODEL = "bulk"
 AGENT = "topic_extractor"
