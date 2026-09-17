@@ -1,17 +1,21 @@
 [project]
 name = "pennsieve-ai-scout"
-version = "0.4.1"
+version = "0.4.2"
 description = "Pennsieve compute-node processor — stage 1 of the pennsieve-ai research pipeline."
 requires-python = ">=3.12"
 dependencies = [
     # pennsieve-llm SDK is a thin configuration helper over the official
     # `anthropic` SDK — `Governor().client()` returns a pre-configured
     # `anthropic.Anthropic` pointed at the governor with SigV4 auth and the
-    # x-execution-run-id header wired up. Pulls in anthropic, httpx, and
-    # boto3 transitively.
+    # x-execution-run-id header wired up. Pulls in anthropic, httpx2, and
+    # boto3 transitively (NOT httpx — see the explicit httpx dep below).
     "pennsieve-llm>=0.6.1,<0.7",
     "numpy>=1.26",
     "json-repair>=0.30",
+    # Direct HTTP client for the repository & literature APIs this app calls
+    # (Europe PMC, CrossRef, DataCite, DANDI, OpenNeuro, OpenAlex, Pennsieve
+    # Discover). Declared explicitly now that pennsieve-llm pulls httpx2, not httpx.
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
