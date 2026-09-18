@@ -76,7 +76,7 @@ def main() -> int:
     except ModelNotAvailable as e:
         print(f"ERROR: {e}", file=sys.stderr)
         bb.log(STAGE, "fatal", f"model preflight failed: {e}")
-        write_outputs(bb, output_dir, client.usage_log)
+        write_outputs(bb, output_dir, client.usage_log, stage=STAGE)
         return 5
     for role, assignment in assignments.items():
         bb.record_model_assignment(stage=STAGE, role=role, assignment=assignment)
@@ -88,7 +88,7 @@ def main() -> int:
         run_scout(bb, client, seed_dataset_id=seed_dataset_id)
     except (Exception, KeyboardInterrupt) as e:
         bb.log(STAGE, "fatal", repr(e))
-        write_outputs(bb, output_dir, client.usage_log)
+        write_outputs(bb, output_dir, client.usage_log, stage=STAGE)
         raise
 
     if bb.degraded:
@@ -100,7 +100,7 @@ def main() -> int:
     else:
         bb.log(STAGE, "done", "")
 
-    write_outputs(bb, output_dir, client.usage_log)
+    write_outputs(bb, output_dir, client.usage_log, stage=STAGE)
     print(f"\nWrote: {output_dir / 'blackboard.json'}")
     return 0
 
