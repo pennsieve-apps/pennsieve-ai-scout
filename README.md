@@ -54,17 +54,21 @@ diagnostics and continues with titles and abstracts unless
 
 ## LLM access
 
-All LLM calls route through the Pennsieve LLM Governor Lambda
+On the platform, all LLM calls route through the Pennsieve LLM Governor Lambda
 (`$LLM_GOVERNOR_FUNCTION_NAME`) via the shared `pennsieve_ai_utils.llm.LLMClient`.
+For local testing, you can set `VP_LLM_BACKEND=bedrock`. The stage then calls
+Bedrock directly with your own AWS profile. The
+[pennsieve-ai-utils README](https://github.com/Pennsieve/pennsieve-ai-utils#llm-client)
+explains this setting.
 
 Models are addressed by the **role they play in the pipeline**, never by
 vendor family — see `pennsieve_ai_utils.models`:
 
 | Role | Used by | Floor | Ceiling |
 |---|---|---|---|
-| `reasoning` | `dataset_framer` | Sonnet 4.6 | — |
-| `synthesis` | `verifier`, `dataset_compatibility`, `lit_scout` | Sonnet 4.5 | Opus 4.6 |
-| `bulk` | `topic_extractor` | Haiku 3.5 | Haiku 4.5 |
+| `reasoning` | `dataset_framer` | Sonnet 5.5 | — |
+| `synthesis` | `verifier`, `dataset_compatibility`, `lit_scout` | Sonnet 4.6 | Sonnet 5.5 |
+| `bulk` | `topic_extractor` | Haiku 4.5 | Haiku 4.5 |
 
 Selection is rank-based rather than a hardcoded preference chain: each role
 takes the highest-ranked permitted model inside its floor/ceiling band, so a
