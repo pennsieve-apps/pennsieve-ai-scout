@@ -8,6 +8,7 @@ The output is a populated Blackboard, written to `$OUTPUT_DIR/blackboard.json`.
 """
 from __future__ import annotations
 
+import json
 import os
 
 from concurrent.futures import ThreadPoolExecutor
@@ -35,9 +36,8 @@ if TYPE_CHECKING:
 
 
 # Constants mirror the monorepo's orchestrator defaults
-DEEP_EVIDENCE_K = 15
-DEEP_EVIDENCE_POOL = 60
-LAYER_RAG_PATH = Path(os.environ.get("VP_RAG_PATH", "/mnt/layers/pennsieve-ai-rag"))
+# The RAG step reads this file from Scout's output folder.
+RAG_PAPERS_FILE = "rag_papers.json"
 
 # Generic tags that should never anchor topical retrieval — they're modality
 # markers, not specific topics. (Copied from orchestrator._GENERIC_TAG_STOPWORDS.)
@@ -75,12 +75,7 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
     discovery and framing, populates dataset_summaries / papers_seen /
     literature_claims / deep_evidence / director_brief."""
 
-    require_deep = os.environ.get("VP_REQUIRE_DEEP_EVIDENCE", "0") == "1"
-    if require_deep and not ((LAYER_RAG_PATH / "embeddings/index.jsonl").is_file()
-                             or (LAYER_RAG_PATH / "chunks.jsonl.gz").is_file()):
-        raise RuntimeError("VP_REQUIRE_DEEP_EVIDENCE=1 requires a compatible populated RAG layer "
-                           f"at {LAYER_RAG_PATH}; expected a legacy index or manifest.json + chunks.jsonl.gz")
-    bb.deep_read_stats = {"status": "abstracts_only", "layer": str(LAYER_RAG_PATH)}
+    bb.deep_read_stats = {"status": "abstracts_only"}
     # --- Stage 0: deep dataset inspection ---
     print("--- inspecting seed dataset ---")
     detail, inspection = _fetch_seed(seed_dataset_id)
@@ -219,8 +214,10 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
         print("\n--- dataset_compatibility ---")
         # Optional: cross-dataset verdicts are useful but nothing downstream
         # requires them, so this has never aborted the run.
+        # Required: the framer and Hypothesize rely on these verdicts, and a
+        # missing assessment would otherwise read as "nothing is compatible".
         _stage(bb, "dataset_compatibility", dataset_compatibility.run,
-               bb, client, required=False)
+               bb, client, required=True)
 
     # --- Stage 0d: Dataset Framer ---
     print("\n--- dataset_framer ---")
@@ -248,46 +245,21 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
     _stage(bb, "verifier", verifier.run, bb, client)
     _enrich_dois(bb)
 
-    # --- Stage 1c: Deep evidence retrieval from RAG layer ---
-    if LAYER_RAG_PATH.exists():
-        print(f"\n--- deep evidence retrieval from {LAYER_RAG_PATH} ---")
-        try:
-            from pennsieve_ai_utils.tools.rag_store import RAGStore
-            store = RAGStore(LAYER_RAG_PATH, read_only=True, dataset_doi=next(
-                (d.doi for d in bb.dataset_summaries if d.id == bb.subsystem), ""))
-            stats = store.stats()
-            if stats.get("chunks", 0) > 0:
-                focus = " ".join((bb.director_brief.focus_areas if bb.director_brief else [])[:3])
-                query = f"{bb.research_question} {focus}".strip()
-                chunks = store.retrieve(
-                    query, k=DEEP_EVIDENCE_K, candidate_pool=DEEP_EVIDENCE_POOL,
-                    topics_filter=_run_topics_filter(bb),
-                )
-                bb.deep_evidence = [
-                    {"chunk_id": c.chunk_id, "doi": c.doi, "section": c.section,
-                     "text": c.text, "score": round(c.score, 4)}
-                    for c in chunks
-                ]
-                bb.deep_read_stats = {**stats, "status": "retrieved" if chunks else "no_matching_chunks"}
-                bb.log("pipeline", "deep_evidence",
-                       f"retrieved {len(bb.deep_evidence)} chunks from layer "
-                       f"({stats.get('chunks', 0)} total)")
-            else:
-                bb.log("pipeline", "deep_evidence_empty",
-                       "RAG layer is mounted but empty — run loader workflow to populate")
-        except Exception as e:
-            bb.deep_read_stats = {"status": "retrieval_failed", "error": str(e)}
-            bb.log("pipeline", "deep_evidence_error", f"{e!r}")
-            print(f"  [deep_evidence] error: {e}")
-    else:
-        bb.log("pipeline", "deep_evidence_skipped",
-               f"layer {LAYER_RAG_PATH} not mounted — downstream stages get titles/abstracts only")
-        print(f"  [deep_evidence] skipped: {LAYER_RAG_PATH} not mounted")
+    # --- Stage 1c: choose papers for the RAG index ---
+    # The RAG step runs after Scout and indexes these papers' full text along
+    # with the dataset's own links; Hypothesize then searches the index.
+    requested = _papers_for_rag(bb)
+    bb.deep_read_stats = {**bb.deep_read_stats, "requested_papers": requested}
+    if os.environ.get("OUTPUT_DIR"):
+        out = Path(os.environ["OUTPUT_DIR"])
+        out.mkdir(parents=True, exist_ok=True)
+        (out / RAG_PAPERS_FILE).write_text(json.dumps({"papers": requested}, indent=2) + "\n")
+    bb.log("pipeline", "rag_papers",
+           f"{len(requested)} papers chosen for the RAG index: "
+           + ", ".join(p["doi"] for p in requested))
+    print(f"  chose {len(requested)} papers for the RAG index ({RAG_PAPERS_FILE})")
 
-    if require_deep and not bb.deep_evidence:
-        raise RuntimeError("Full-text evidence is required but retrieval returned no chunks; "
-                           "inspect deep_read_stats and RAG model/dimension/topic configuration")
-    # Re-enrich DOIs once more after RAG retrievals
+    # Re-enrich DOIs once more
     _enrich_dois(bb)
     print(f"\nScout complete: {len(bb.dataset_summaries)} datasets, "
           f"{len(bb.papers_seen)} papers, "
@@ -516,6 +488,37 @@ def _enrich_dois(bb: Blackboard) -> None:
                     "year": rec.get("year", ""),
                     "journal": rec.get("journal", ""),
                 }
+
+
+def _papers_for_rag(bb: Blackboard, limit: int = 10) -> list[dict]:
+    """Papers whose full text is worth indexing: those cited by verified claims.
+
+    Ranked by open access first (only open-access papers have full text to
+    index), then by how many supported claims cite them. Papers no supported
+    claim cites are left out.
+    """
+    counts: dict[str, int] = {}
+    for c in bb.literature_claims:
+        if c.entailment != "supports":
+            continue
+        doi = _bare_doi(c.source)
+        if doi:
+            counts[doi] = counts.get(doi, 0) + 1
+    meta = {_bare_doi(p.get("doi", "")): p for p in bb.papers_seen}
+    ranked = sorted(counts, key=lambda d: (not meta.get(d, {}).get("is_open_access", False),
+                                           -counts[d], d))
+    return [{"doi": d, "supported_claims": counts[d],
+             "open_access": bool(meta.get(d, {}).get("is_open_access", False)),
+             "title": meta.get(d, {}).get("title", "")}
+            for d in ranked[:limit]]
+
+
+def _bare_doi(source: str) -> str:
+    s = (source or "").strip()
+    for prefix in ("doi:", "https://doi.org/", "http://doi.org/"):
+        if s.lower().startswith(prefix):
+            s = s[len(prefix):]
+    return s.lower() if s.startswith("10.") else ""
 
 
 def _run_topics_filter(bb: Blackboard) -> set[str] | None:

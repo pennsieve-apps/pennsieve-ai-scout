@@ -88,20 +88,18 @@ def run(bb: Blackboard, client: LLMClient) -> None:
         "method comparison, treatment-effect) explicitly when they exist."
     )
 
-    try:
-        parsed = call_json(
-            client,
-            agent=AGENT,
-            system=system,
-            user="\n\n".join(user_parts),
-            run_id=bb.run_id,
-            model=MODEL,
-            max_tokens=4096,
-        )
-    except Exception as e:
-        bb.log(AGENT, "error", f"compatibility call failed: {e!r}")
-        bb.cross_dataset_compatibility = []
-        return
+    # Errors are raised to the pipeline's stage wrapper, which stops the run
+    # (or, with VP_DEGRADED_OK=1, records the step as degraded). Catching them
+    # here made a failed call look like "no compatible datasets".
+    parsed = call_json(
+        client,
+        agent=AGENT,
+        system=system,
+        user="\n\n".join(user_parts),
+        run_id=bb.run_id,
+        model=MODEL,
+        max_tokens=4096,
+    )
 
     raw = parsed.get("compatibility_assessments") or []
     cleaned: list[dict] = []
