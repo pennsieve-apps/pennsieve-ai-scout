@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=https://schemas.pennsieve.io/app-manifest/v1.json
+application:
+  name: AI Scout
+  description: Stage 1 of the pennsieve-ai research pipeline. Takes a Pennsieve dataset DOI, gathers similar datasets (Pennsieve, DANDI, OpenNeuro) and related literature (Europe PMC, CrossRef), and uses Claude to frame research directions and verify literature claims, writing a blackboard.json for the later stages.
+  type: processor
+  tags:
+    - literature
+    - discovery
+    - research
+    - llm
+
+runtime:
+  computeTypes:
+    - standard
+  # Calls Claude through the Pennsieve LLM governor: LLM access is opt-in.
+  llm: true
+
+parameters:
+  - name: SEED_DOI
+    label: Seed dataset DOI
+    description: DOI of the published Pennsieve dataset to start from, e.g. 10.26275/abcd-efgh.
+    type: string
+    required: true
+  - name: DISCOVER_API_HOST
+    label: Discover API
+    description: The Pennsieve Discover API used to resolve the DOI and inspect datasets. Set https://api.pennsieve.net/discover on the dev platform.
+    type: string
+    defaultValue: https://api.pennsieve.io/discover
+  - name: VP_DEGRADED_OK
+    label: Allow degraded run
+    description: Diagnostic override. When true, a required stage (or the model preflight) that fails is skipped and recorded on the blackboard instead of failing the run.
+    type: boolean
+    defaultValue: false
+  - name: VP_MODEL_REASONING
+    label: Reasoning model
+    description: Pins the reasoning role (dataset framer) to this model id, bypassing the floor/ceiling selection. Leave unset to pick from the governor's allow-list.
+    type: string
+    required: false
+  - name: VP_MODEL_SYNTHESIS
+    label: Synthesis model
+    description: Pins the synthesis role (verifier, dataset compatibility, lit scout) to this model id. Leave unset to pick from the governor's allow-list.
+    type: string
+    required: false
+  - name: VP_MODEL_BULK
+    label: Bulk model
+    description: Pins the bulk role (topic extraction) to this model id. Leave unset to pick from the governor's allow-list.
+    type: string
+    required: false
+  - name: VP_LLM_MAX_RETRIES
+    label: LLM retries
+    description: SDK retries per LLM call. Leave unset for the default (1 through the governor).
+    type: integer
+    required: false
+  - name: VP_LOG_LLM_IO
+    label: Log LLM requests and responses
+    description: When true, writes every LLM request and response to llm-io.scout.jsonl in the output.
+    type: boolean
+    defaultValue: false
+
+outputs:
+  - name: blackboard
+    description: blackboard.json (and a blackboard.scout.json snapshot) for the downstream stages, rag_papers.json (papers chosen for the RAG index), notebook.jsonl, usage.jsonl, run.json and PROVENANCE.md.
+    mediaTypes:
+      - application/json
+      - application/jsonl
+      - text/markdown
