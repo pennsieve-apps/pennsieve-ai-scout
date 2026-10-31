@@ -17,12 +17,12 @@ from typing import TYPE_CHECKING
 
 from scout.agents import dataset_compatibility, dataset_framer, lit_scout, verifier
 from pennsieve_ai_utils.blackboard import Blackboard, DatasetSummary
-from pennsieve_ai_utils.models import degraded_ok
 from pennsieve_ai_utils.tools import crossref
 from scout.tools import (
     dandi_discover,
     dandi_inspect,
     europe_pmc,
+    openalex,
     openneuro_discover,
     openneuro_inspect,
     pennsieve_discover,
@@ -51,16 +51,15 @@ _GENERIC_TAG_STOPWORDS = {
 def _stage(bb: Blackboard, name: str, fn, *args, required: bool = True, **kwargs) -> bool:
     """Run one LLM-dependent stage. Returns True if it completed.
 
-    A `required` stage failing is fatal unless `VP_DEGRADED_OK` is set, in
-    which case it's recorded on `bb.degraded` and the run continues. Optional
-    stages never abort the run but are still recorded, so a partial blackboard
+    A `required` stage failing is fatal. Optional stages never abort the run
+    but are recorded on `bb.degraded`, so a partial blackboard
     always says which parts are missing instead of looking complete.
     """
     try:
         fn(*args, **kwargs)
         return True
     except Exception as e:
-        if required and not degraded_ok():
+        if required:
             raise
         detail = f"{type(e).__name__}: {e}"
         bb.degraded.append({"stage": name, "error": detail[:500]})
@@ -94,9 +93,7 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
                    "Check Discover metadata/download access and legacy S3 Requester Pays "
                    "permissions before generating hypotheses.")
         bb.log("seed_inspection", "blocked", message)
-        if not degraded_ok():
-            raise RuntimeError(message)
-        bb.degraded.append({"stage": "seed_inspection", "error": message})
+        raise RuntimeError(message)
 
     # Topic extraction (LLM): drives the retrieval topical filter
     try:
@@ -424,7 +421,7 @@ def _pull_reference_papers(external_pubs: list[dict], bb: Blackboard,
         if not doi or "protocols.io" in doi:
             continue
         try:
-            refs = europe_pmc.references(doi, limit=limit)
+            refs = openalex.referenced_papers(doi, limit=limit)
         except Exception as e:
             bb.log("pipeline", "refs_warn", f"{doi}: {e!r}")
             continue
@@ -445,7 +442,7 @@ def _pull_citing_papers(external_pubs: list[dict], bb: Blackboard,
         if not doi or "protocols.io" in doi:
             continue
         try:
-            cites = europe_pmc.citations(doi, limit=limit)
+            cites = openalex.citing_papers(doi, limit=limit)
         except Exception as e:
             bb.log("pipeline", "citing_warn", f"{doi}: {e!r}")
             continue
