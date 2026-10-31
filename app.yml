@@ -26,11 +26,6 @@ parameters:
     description: The Pennsieve Discover API used to resolve the DOI and inspect datasets. Set https://api.pennsieve.net/discover on the dev platform.
     type: string
     defaultValue: https://api.pennsieve.io/discover
-  - name: VP_DEGRADED_OK
-    label: Allow degraded run
-    description: Diagnostic override. When true, a required stage (or the model preflight) that fails is skipped and recorded on the blackboard instead of failing the run.
-    type: boolean
-    defaultValue: false
   - name: VP_MODEL_REASONING
     label: Reasoning model
     description: Pins the reasoning role (dataset framer) to this model id, bypassing the floor/ceiling selection. Leave unset to pick from the governor's allow-list.

@@ -24,7 +24,6 @@ def test_legacy_inspection_uses_public_assets_and_manifest(monkeypatch):
 
 
 def test_empty_seed_stops_before_llm_work(monkeypatch):
-    monkeypatch.delenv("VP_DEGRADED_OK", raising=False)
     monkeypatch.setattr(pipeline, "_fetch_seed", lambda seed: ({"name": "seed"}, {}))
     bb = Blackboard("q", "pennsieve:405")
     with pytest.raises(RuntimeError, match="no inspectable files"):
