@@ -487,12 +487,23 @@ def _enrich_dois(bb: Blackboard) -> None:
                 }
 
 
-def _papers_for_rag(bb: Blackboard, limit: int = 10) -> list[dict]:
-    """Papers whose full text is worth indexing: those cited by verified claims.
+# The RAG index holds up to RAG_PAPER_LIMIT papers. The first REQUIRED_RAG_PAPERS papers cited by
+# supported claims must be indexed or the run stops; the rest, and open-access papers Scout saw
+# that no claim cites, are indexed when their text can be fetched. Embedding is cheap, and the
+# passages a search keeps (not the index size) are what reach the expensive prompts.
+RAG_PAPER_LIMIT = 30
+REQUIRED_RAG_PAPERS = 10
 
-    Ranked by open access first (only open-access papers have full text to
-    index), then by how many supported claims cite them. Papers no supported
-    claim cites are left out.
+
+def _papers_for_rag(bb: Blackboard, limit: int = RAG_PAPER_LIMIT,
+                    required: int = REQUIRED_RAG_PAPERS) -> list[dict]:
+    """Papers whose text is worth indexing.
+
+    First the papers cited by supported claims, open access first, then by how
+    many supported claims cite them; the first `required` of these are marked
+    required. Then open-access papers with a PubMed Central copy that no claim
+    cites, in the order Scout found them, which are never required: a full text
+    that cannot be fetched should not stop the run.
     """
     counts: dict[str, int] = {}
     for c in bb.literature_claims:
@@ -504,10 +515,21 @@ def _papers_for_rag(bb: Blackboard, limit: int = 10) -> list[dict]:
     meta = {_bare_doi(p.get("doi", "")): p for p in bb.papers_seen}
     ranked = sorted(counts, key=lambda d: (not meta.get(d, {}).get("is_open_access", False),
                                            -counts[d], d))
-    return [{"doi": d, "supported_claims": counts[d],
-             "open_access": bool(meta.get(d, {}).get("is_open_access", False)),
-             "title": meta.get(d, {}).get("title", "")}
-            for d in ranked[:limit]]
+    chosen = [{"doi": d, "supported_claims": counts[d],
+               "open_access": bool(meta.get(d, {}).get("is_open_access", False)),
+               "title": meta.get(d, {}).get("title", ""), "required": i < required}
+              for i, d in enumerate(ranked[:limit])]
+    taken = {p["doi"] for p in chosen}
+    for paper in bb.papers_seen:
+        if len(chosen) >= limit:
+            break
+        doi = _bare_doi(paper.get("doi", ""))
+        if not doi or doi in taken or not (paper.get("is_open_access") and paper.get("pmcid")):
+            continue
+        chosen.append({"doi": doi, "supported_claims": 0, "open_access": True,
+                       "title": paper.get("title", ""), "required": False})
+        taken.add(doi)
+    return chosen
 
 
 def _bare_doi(source: str) -> str:
