@@ -11,7 +11,7 @@ import sys
 
 from pennsieve_ai_utils.blackboard import Blackboard
 from pennsieve_ai_utils.llm import LLMClient
-from pennsieve_ai_utils.models import ModelNotAvailable, degraded_ok
+from pennsieve_ai_utils.models import ModelNotAvailable
 from pennsieve_ai_utils.processor import ProcessorEnv, install_sigterm_handler, write_outputs
 
 from scout.pipeline import run_scout
@@ -72,7 +72,7 @@ def main() -> int:
     # the only stage that uses all three roles (bulk drives topic extraction).
     client = LLMClient(stage=STAGE)
     try:
-        assignments = client.preflight(strict=not degraded_ok())
+        assignments = client.preflight(strict=True)
     except ModelNotAvailable as e:
         print(f"ERROR: {e}", file=sys.stderr)
         bb.log(STAGE, "fatal", f"model preflight failed: {e}")

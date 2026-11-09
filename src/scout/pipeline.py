@@ -17,12 +17,12 @@ from typing import TYPE_CHECKING
 
 from scout.agents import dataset_compatibility, dataset_framer, lit_scout, verifier
 from pennsieve_ai_utils.blackboard import Blackboard, DatasetSummary
-from pennsieve_ai_utils.models import degraded_ok
 from pennsieve_ai_utils.tools import crossref
 from scout.tools import (
     dandi_discover,
     dandi_inspect,
     europe_pmc,
+    openalex,
     openneuro_discover,
     openneuro_inspect,
     pennsieve_discover,
@@ -51,16 +51,15 @@ _GENERIC_TAG_STOPWORDS = {
 def _stage(bb: Blackboard, name: str, fn, *args, required: bool = True, **kwargs) -> bool:
     """Run one LLM-dependent stage. Returns True if it completed.
 
-    A `required` stage failing is fatal unless `VP_DEGRADED_OK` is set, in
-    which case it's recorded on `bb.degraded` and the run continues. Optional
-    stages never abort the run but are still recorded, so a partial blackboard
+    A `required` stage failing is fatal. Optional stages never abort the run
+    but are recorded on `bb.degraded`, so a partial blackboard
     always says which parts are missing instead of looking complete.
     """
     try:
         fn(*args, **kwargs)
         return True
     except Exception as e:
-        if required and not degraded_ok():
+        if required:
             raise
         detail = f"{type(e).__name__}: {e}"
         bb.degraded.append({"stage": name, "error": detail[:500]})
@@ -94,9 +93,7 @@ def run_scout(bb: Blackboard, client: "LLMClient", seed_dataset_id: str,
                    "Check Discover metadata/download access and legacy S3 Requester Pays "
                    "permissions before generating hypotheses.")
         bb.log("seed_inspection", "blocked", message)
-        if not degraded_ok():
-            raise RuntimeError(message)
-        bb.degraded.append({"stage": "seed_inspection", "error": message})
+        raise RuntimeError(message)
 
     # Topic extraction (LLM): drives the retrieval topical filter
     try:
@@ -424,7 +421,7 @@ def _pull_reference_papers(external_pubs: list[dict], bb: Blackboard,
         if not doi or "protocols.io" in doi:
             continue
         try:
-            refs = europe_pmc.references(doi, limit=limit)
+            refs = openalex.referenced_papers(doi, limit=limit)
         except Exception as e:
             bb.log("pipeline", "refs_warn", f"{doi}: {e!r}")
             continue
@@ -445,7 +442,7 @@ def _pull_citing_papers(external_pubs: list[dict], bb: Blackboard,
         if not doi or "protocols.io" in doi:
             continue
         try:
-            cites = europe_pmc.citations(doi, limit=limit)
+            cites = openalex.citing_papers(doi, limit=limit)
         except Exception as e:
             bb.log("pipeline", "citing_warn", f"{doi}: {e!r}")
             continue
@@ -490,12 +487,23 @@ def _enrich_dois(bb: Blackboard) -> None:
                 }
 
 
-def _papers_for_rag(bb: Blackboard, limit: int = 10) -> list[dict]:
-    """Papers whose full text is worth indexing: those cited by verified claims.
+# The RAG index holds up to RAG_PAPER_LIMIT papers. The first REQUIRED_RAG_PAPERS papers cited by
+# supported claims must be indexed or the run stops; the rest, and open-access papers Scout saw
+# that no claim cites, are indexed when their text can be fetched. Embedding is cheap, and the
+# passages a search keeps (not the index size) are what reach the expensive prompts.
+RAG_PAPER_LIMIT = 30
+REQUIRED_RAG_PAPERS = 10
 
-    Ranked by open access first (only open-access papers have full text to
-    index), then by how many supported claims cite them. Papers no supported
-    claim cites are left out.
+
+def _papers_for_rag(bb: Blackboard, limit: int = RAG_PAPER_LIMIT,
+                    required: int = REQUIRED_RAG_PAPERS) -> list[dict]:
+    """Papers whose text is worth indexing.
+
+    First the papers cited by supported claims, open access first, then by how
+    many supported claims cite them; the first `required` of these are marked
+    required. Then open-access papers with a PubMed Central copy that no claim
+    cites, in the order Scout found them, which are never required: a full text
+    that cannot be fetched should not stop the run.
     """
     counts: dict[str, int] = {}
     for c in bb.literature_claims:
@@ -507,10 +515,21 @@ def _papers_for_rag(bb: Blackboard, limit: int = 10) -> list[dict]:
     meta = {_bare_doi(p.get("doi", "")): p for p in bb.papers_seen}
     ranked = sorted(counts, key=lambda d: (not meta.get(d, {}).get("is_open_access", False),
                                            -counts[d], d))
-    return [{"doi": d, "supported_claims": counts[d],
-             "open_access": bool(meta.get(d, {}).get("is_open_access", False)),
-             "title": meta.get(d, {}).get("title", "")}
-            for d in ranked[:limit]]
+    chosen = [{"doi": d, "supported_claims": counts[d],
+               "open_access": bool(meta.get(d, {}).get("is_open_access", False)),
+               "title": meta.get(d, {}).get("title", ""), "required": i < required}
+              for i, d in enumerate(ranked[:limit])]
+    taken = {p["doi"] for p in chosen}
+    for paper in bb.papers_seen:
+        if len(chosen) >= limit:
+            break
+        doi = _bare_doi(paper.get("doi", ""))
+        if not doi or doi in taken or not (paper.get("is_open_access") and paper.get("pmcid")):
+            continue
+        chosen.append({"doi": doi, "supported_claims": 0, "open_access": True,
+                       "title": paper.get("title", ""), "required": False})
+        taken.add(doi)
+    return chosen
 
 
 def _bare_doi(source: str) -> str:

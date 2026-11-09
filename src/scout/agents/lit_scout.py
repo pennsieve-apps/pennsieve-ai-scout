@@ -153,7 +153,10 @@ def run(bb: Blackboard, client: LLMClient) -> None:
                    f"trying seed-derived: {fallbacks!r}")
             papers = _gather_papers(fallbacks, bb)
 
-    bb.papers_seen = papers
+    # Keep the linked, citing and reference papers the pipeline already put
+    # on the blackboard; the search results are added after them.
+    known = {_dedupe_key(p) for p in bb.papers_seen}
+    bb.papers_seen = list(bb.papers_seen) + [p for p in papers if _dedupe_key(p) not in known]
     bb.log(
         AGENT,
         "union",

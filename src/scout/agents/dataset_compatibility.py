@@ -89,7 +89,7 @@ def run(bb: Blackboard, client: LLMClient) -> None:
     )
 
     # Errors are raised to the pipeline's stage wrapper, which stops the run
-    # (or, with VP_DEGRADED_OK=1, records the step as degraded). Catching them
+    # (the run stops). Catching them
     # here made a failed call look like "no compatible datasets".
     parsed = call_json(
         client,

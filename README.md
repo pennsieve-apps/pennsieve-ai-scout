@@ -20,7 +20,6 @@ blackboard for the downstream stages: `pennsieve-ai-hypothesize`,
 | `DISCOVER_API_HOST` | `https://api.pennsieve.io/discover` | Pennsieve Discover API base URL |
 | `VP_RAG_PATH` | `/mnt/layers/pennsieve-ai-rag` | Optional persistent RAG layer mount |
 | `VP_REQUIRE_DEEP_EVIDENCE` | `0` | Set to `1` to fail unless compatible full-text evidence is available |
-| `VP_DEGRADED_OK` | `0` | Diagnostic override that permits required Scout stages to be skipped after failure |
 
 No `INPUT_DIR` consumption — Scout is the first stage.
 
